@@ -1,4 +1,5 @@
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8095';
+export const WS_BASE = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8095';
 
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);

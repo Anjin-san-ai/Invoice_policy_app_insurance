@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "value": "swedencentral" },
+    "swaLocation": { "value": "westeurope" },
+    "namePrefix": { "value": "invoice" },
+    "acrName": { "value": "REPLACE_WITH_ACR_NAME" },
+    "imageTag": { "value": "invoice-app:latest" },
+    "azureOpenAiEndpoint": { "value": "REPLACE_WITH_AZURE_OPENAI_ENDPOINT" },
+    "azureOpenAiApiKey": { "value": "REPLACE_OR_PASS_ON_CLI" },
+    "azureOpenAiDeployment": { "value": "gpt-5.5" },
+    "openAiApiVersion": { "value": "2025-03-01-preview" }
+  }
+}

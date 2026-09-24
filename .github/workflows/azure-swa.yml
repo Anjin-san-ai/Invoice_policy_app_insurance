@@ -1,0 +1,30 @@
+name: Deploy invoice frontend to Azure Static Web Apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/invoice_to_pay/frontend/**'
+      - '.github/workflows/azure-swa.yml'
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          # Frontend lives in a subdirectory
+          app_location: 'apps/invoice_to_pay/frontend'
+          output_location: 'dist'
+        env:
+          # Build-time API targets — set these repo secrets to the deployed backend URLs,
+          # e.g. https://invoice-api.<region>.azurecontainerapps.io and its wss:// form.
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          VITE_WS_BASE: ${{ secrets.VITE_WS_BASE }}

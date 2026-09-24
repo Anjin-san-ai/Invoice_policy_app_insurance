@@ -1,0 +1,11 @@
+.git
+.venv
+venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+apps/invoice_to_pay/frontend/dist
+*.png
+.playwright-mcp
+logs
+generated

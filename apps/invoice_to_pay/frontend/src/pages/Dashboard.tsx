@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { WS_BASE } from '../api/client';
 import { useApi } from '../api/useApi';
 import { ExceptionDonut, LeakageByCategory } from '../charts/Charts';
 import { FlowPipeline, RadialGauge, StackedShare, StatChip } from '../charts/Visuals';
@@ -29,8 +30,7 @@ export function Dashboard() {
   const [stream, setStream] = useState<Array<{ invoice_id: string; status: string; gross_gbp: number }>>([]);
 
   useEffect(() => {
-    const base = import.meta.env.VITE_WS_BASE ?? 'ws://localhost:8095';
-    const socket = new WebSocket(`${base}/ws/invoice-stream`);
+    const socket = new WebSocket(`${WS_BASE}/ws/invoice-stream`);
     socket.onmessage = (event) => setStream((items) => [JSON.parse(event.data), ...items].slice(0, 7));
     return () => socket.close();
   }, []);

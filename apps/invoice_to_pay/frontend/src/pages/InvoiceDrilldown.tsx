@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { ArrowLeft, Download, HelpCircle, Send, Undo2 } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
-import { apiPost } from '../api/client';
+import { API_BASE, apiPost } from '../api/client';
 import { useApi } from '../api/useApi';
 import { VarianceWaterfall } from '../charts/Charts';
 import { ConfidenceMeter, Empty, KeyValues, Loading, StatusChip, ToleranceChip } from '../components/Common';
@@ -85,7 +85,7 @@ export function InvoiceDrilldown({ invoiceId }: { invoiceId: string }) {
   async function exportPack() {
     setBusy('Evidence pack');
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE ?? 'http://localhost:8095'}/api/invoices/${invoiceId}/evidence-pack`);
+      const response = await fetch(`${API_BASE}/api/invoices/${invoiceId}/evidence-pack`);
       const pack = await response.json();
       const url = URL.createObjectURL(new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }));
       const anchor = document.createElement('a');

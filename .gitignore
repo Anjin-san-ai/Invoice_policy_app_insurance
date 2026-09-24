@@ -135,6 +135,8 @@ celerybeat.pid
 
 # Environments
 .env
+# Local Bicep params may hold the real Azure OpenAI key/endpoint; commit the .example template instead
+infra/main.parameters.json
 .venv
 env/
 venv/
