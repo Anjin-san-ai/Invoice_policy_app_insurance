@@ -1,0 +1,143 @@
+{
+  "sample_size": 2000,
+  "metrics": {
+    "document_classification_accuracy": {
+      "name": "document_classification_accuracy",
+      "value": 1.0,
+      "target": 0.97,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "Document type compared against the service type parsed from 1920 documents."
+    },
+    "supplier_identification_accuracy": {
+      "name": "supplier_identification_accuracy",
+      "value": 1.0,
+      "target": 0.98,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "Supplier id compared against the supplier name parsed from 1920 documents."
+    },
+    "field_extraction_accuracy": {
+      "name": "field_extraction_accuracy",
+      "value": 0.9896,
+      "target": 0.95,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "11400 of 11520 fields matched the document text."
+    },
+    "extraction_confidence_ece": {
+      "name": "extraction_confidence_ece",
+      "value": 0.0058,
+      "target": 0.05,
+      "comparator": "<=",
+      "passed": true,
+      "method": "measured",
+      "note": "Expected calibration error over 5881 lines in 10 confidence bins."
+    },
+    "pii_redaction_recall": {
+      "name": "pii_redaction_recall",
+      "value": 1.0,
+      "target": 0.99,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "543 of 543 true PII spans were redacted."
+    },
+    "pii_redaction_false_positive_rate": {
+      "name": "pii_redaction_false_positive_rate",
+      "value": 0.0,
+      "target": 0.03,
+      "comparator": "<=",
+      "passed": true,
+      "method": "measured",
+      "note": "0 of 543 redacted regions did not overlap real PII."
+    },
+    "claim_matching_accuracy": {
+      "name": "claim_matching_accuracy",
+      "value": 1.0,
+      "target": 0.98,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "1800 of 1800 matchable invoices resolved to the claim reference in the document."
+    },
+    "claim_matching_false_match_rate": {
+      "name": "claim_matching_false_match_rate",
+      "value": 0.0,
+      "target": 0.005,
+      "comparator": "<=",
+      "passed": true,
+      "method": "measured",
+      "note": "0 of 120 unmatchable invoices were not flagged as failed matches."
+    },
+    "rerating_arithmetic_exact_match": {
+      "name": "rerating_arithmetic_exact_match",
+      "value": 1.0,
+      "target": 1.0,
+      "comparator": "==",
+      "passed": true,
+      "method": "measured",
+      "note": "6121 of 6121 lines matched an independent units times rate recomputation."
+    },
+    "tolerance_decision_accuracy": {
+      "name": "tolerance_decision_accuracy",
+      "value": 1.0,
+      "target": 0.99,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "6121 of 6121 lines agreed with the 5.0% / \u00a325.0 oracle."
+    },
+    "duplicate_detection_f1": {
+      "name": "duplicate_detection_f1",
+      "value": 1.0,
+      "target": 0.95,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "40 of 40 seeded duplicates detected."
+    },
+    "exception_reason_assignment_accuracy": {
+      "name": "exception_reason_assignment_accuracy",
+      "value": 1.0,
+      "target": 0.97,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "600 of 600 seeded exception invoices received the expected reason."
+    },
+    "explanation_quality_rubric_score": {
+      "name": "explanation_quality_rubric_score",
+      "value": 5.0,
+      "target": 4.0,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "Deterministic five-point rubric over 2000 decisions, not an LLM judge."
+    },
+    "straight_through_rate": {
+      "name": "straight_through_rate",
+      "value": 0.7,
+      "target": 0.7,
+      "comparator": ">=",
+      "passed": true,
+      "method": "measured",
+      "note": "1400 of 2000 invoices required no human touch. Status mix: {'Paid': 1400, 'Queried': 294, 'Awaiting information': 306}."
+    },
+    "audit_hash_chain_valid": {
+      "name": "audit_hash_chain_valid",
+      "value": true,
+      "target": true,
+      "comparator": "==",
+      "passed": true,
+      "method": "measured",
+      "note": "Chain verified over 10957 events."
+    }
+  },
+  "failed_metrics": [],
+  "not_implemented": [],
+  "passed": true
+}

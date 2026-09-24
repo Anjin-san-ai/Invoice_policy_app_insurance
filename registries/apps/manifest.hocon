@@ -1,0 +1,7 @@
+{
+    "apps/invoice_to_pay.hocon": {
+        "serve": true,
+        "public": true,
+        "mcp": false
+    }
+}

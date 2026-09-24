@@ -207,3 +207,10 @@ memory/
 
 # test local only
 registries/manifest.hocon.test
+
+# Local scratch tests: contained a hardcoded Azure key, never publish
+mytests/
+
+# Front-end build artifacts for bundled apps
+apps/*/frontend/node_modules/
+apps/*/frontend/dist/

@@ -92,4 +92,9 @@
     #     python -m neuro_san_studio run --server-http-port 8081 --nsflow-port 4174
     "agent_network_architect.hocon": false,
 
+    "apps/invoice_to_pay.hocon": {
+        "serve": true,
+        "public": true,
+        "mcp": false
+    }
 }

@@ -1,0 +1,417 @@
+# Copyright © 2025-2026 Cognizant Technology Solutions Corp, www.cognizant.com.
+# Licensed under the Apache License, Version 2.0
+{
+    include "config/llm_config.hocon",
+
+    # The included config/llm_config.hocon defines a "fallbacks" chain that starts with plain OpenAI.
+    # This machine only has real Azure OpenAI credentials in .env (the OpenAI/Anthropic/Gemini keys are
+    # still placeholders), so replace the whole chain with the Azure deployment. HOCON merges objects,
+    # so "fallbacks" must be overridden explicitly -- setting sibling keys alone would not take effect.
+    "llm_config": {
+        "fallbacks": [
+            {
+                "class": "azure-openai",
+                "model_name": "gpt-5.5",
+                "deployment_name": "gpt-5.5"
+            }
+        ]
+    },
+
+    "metadata": {
+        "description": "Automated invoice and outlay validation, matching, exception routing and payment prototype for UK insurance claims finance teams.",
+        "tags": ["app", "invoice-to-pay", "claims", "audit"],
+        "sample_queries": [
+            "Process invoice INVREC-000001 and explain the decision.",
+            "Process an out-of-tolerance invoice and show affected line items.",
+            "Show the audit-ready reasoning for invoice validation."
+        ]
+    },
+
+    # The twelve-agent topology in spec section 11.2 means a single "process this invoice" request can
+    # fan out to eleven down-chain LLM agents, so the budget is larger than a flat network would need.
+    # Bounded deliberately: the deterministic pipeline itself finishes in milliseconds, the time is LLM
+    # round-trips. Narrow questions hit one stage agent and return well inside this envelope.
+    "max_steps": 200,
+    "max_execution_seconds": 300,
+    "error_formatter": "json",
+
+    "tools": [
+        # ------------------------------------------------------------------------------------
+        # Agent 1 - Invoice Orchestrator (front man). Must be an LLM agent, never a coded tool.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Invoice_Orchestrator",
+            "function": {
+                "description": "Runs the invoice-to-pay pipeline and returns audit-ready structured results.",
+                "sly_data_schema": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice record id to process, e.g. INVREC-000001."}
+                    }
+                },
+                "sly_data_output_schema": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_state": {"type": "object", "description": "Full invoice state, trace, evidence and audit-oriented details."}
+                    }
+                }
+            },
+            "instructions": """
+You are the front man for a UK insurance claims invoice-to-pay system. You own the canonical invoice
+state and decide straight-through versus exception routing.
+
+Routing rules:
+- For a request to process an invoice end to end, call the stage agents in pipeline order:
+  Intake_And_Classification_Agent, Extraction_Agent, Redaction_Agent, Claim_Matching_Agent,
+  Rate_Card_Validation_Agent, Settlement_And_Dispute_Agent, Payment_And_Writeback_Agent,
+  Communications_Agent. Pass the same invoice_id to each.
+- For a narrow question about one stage, call only that stage agent. Do not run the whole chain.
+- If no invoice id is given, use INVREC-000001.
+
+Return concise JSON with status, decision, exception reason if any, affected line items, evidence
+summary, and audit replay availability. Never expose raw PII in the chat stream; sensitive invoice
+state travels in sly_data. No recommendation may be returned without its evidence.
+""",
+            "allow": {
+                "to_upstream": {"sly_data": ["invoice_state"]},
+                "to_tracing": {"sly_data": ["invoice_state"]}
+            },
+            "tools": [
+                "Intake_And_Classification_Agent",
+                "Extraction_Agent",
+                "Redaction_Agent",
+                "Claim_Matching_Agent",
+                "Rate_Card_Validation_Agent",
+                "Settlement_And_Dispute_Agent",
+                "Communications_Agent",
+                "Payment_And_Writeback_Agent"
+            ],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 2 - Intake & Classification. Flags exception reason 1.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Intake_And_Classification_Agent",
+            "function": {
+                "description": "Determines channel of origin, classifies document type, identifies the supplier and flags missing or invalid identifiers.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "intake" for the given invoice_id.
+Report the channel (email, portal or attachment), the document type, the identified supplier, and
+whether identifiers are valid. If identifiers are missing or invalid, say so explicitly and name
+exception reason missing_or_invalid_identifiers. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 3 - Extraction. Emits per-field confidence and flags low-confidence fields.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Extraction_Agent",
+            "function": {
+                "description": "Produces the structured invoice schema from the document using a supplier template or the generic extractor, with per-field confidence.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "extraction" for the given invoice_id.
+Report the layout used, whether it fell back to the generic extractor (layout ids beginning
+long_tail are non-standard), the extraction schema version, the line count, and the minimum field
+confidence. Flag any field below the confidence threshold as needing human confirmation.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 4 - Redaction. Writes the what-and-why GDPR/PII audit trail.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Redaction_Agent",
+            "function": {
+                "description": "Applies predefined GDPR and PII rules, produces the redacted rendition and records what was redacted and why.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "redaction" for the given invoice_id.
+Report how many redactions were applied and, for each, the rule id and the reason. Never reproduce
+the unredacted value in your answer; describe the region only. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 5 - Claim Matching. Flags exception reason 2.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Claim_Matching_Agent",
+            "function": {
+                "description": "Matches the invoice to a claim in ICE by claim reference, supplier reference and intelligent matching, returning match method and confidence.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "matching" for the given invoice_id.
+Report the matched claim id, the match method and the match confidence. If matching failed, name
+exception reason failed_claim_matching and list the ranked candidate claims returned by the tool.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 6 - Rate Card Validation. Head of the validation cluster (Agents 6, 7, 8).
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Rate_Card_Validation_Agent",
+            "function": {
+                "description": "Re-rates every line against the rate card effective on the service date, returns line-level variance in GBP and percent and flags stale rate cards.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+You lead the validation cluster. Call invoice_pipeline_tool with stage "rate_card" for the given
+invoice_id, then call Entitlement_And_Authorisation_Agent and Tolerance_And_Anomaly_Agent with the
+same invoice_id and combine all three results.
+
+Report per line: charged amount, expected amount, variance in GBP and percent, the rate card id and
+version applied, and whether that rate card is stale. Do not do the arithmetic yourself; the tool is
+authoritative. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool", "Entitlement_And_Authorisation_Agent", "Tolerance_And_Anomaly_Agent"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 7 - Entitlement & Authorisation. Flags exception reason 5.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Entitlement_And_Authorisation_Agent",
+            "function": {
+                "description": "Validates charges against policy coverage, entitlements and prior authorisations, and flags policy or coverage ambiguity.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "entitlement" for the given invoice_id.
+Report the policy cover type, the entitlements checked, and the authorised units and value against
+what was charged. If coverage is ambiguous, name exception reason policy_or_coverage_ambiguity and
+cite the specific entitlement that is unclear. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 8 - Tolerance & Anomaly. Flags exception reason 4 and routes to the Exception Router.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Tolerance_And_Anomaly_Agent",
+            "function": {
+                "description": "Applies tolerances to line-level variance, marks the specific offending lines, detects duplicates, split invoicing and value outliers, and flags high-value invoices.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "tolerance" for the given invoice_id.
+Report which specific line ids are outside tolerance and which are within, plus any duplicate,
+split-invoice or value-outlier flag. Never recommend rejecting a whole invoice when only some lines
+are outside tolerance. If the invoice is above the high-value threshold, name exception reason
+high_value. When any exception condition holds, call Exception_Router_Agent with the same
+invoice_id. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool", "Exception_Router_Agent"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 9 - Settlement & Dispute. Produces the final decision.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Settlement_And_Dispute_Agent",
+            "function": {
+                "description": "Produces AUTO_APPROVE, QUERY or ROUTE_TO_HANDLER, and for QUERY generates the dispute query naming the specific line items with their rate or entitlement basis.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "settlement" for the given invoice_id.
+Return exactly one decision value: AUTO_APPROVE, QUERY or ROUTE_TO_HANDLER, together with
+confidence, reasoning, the evidence citations, and affected_lines. For QUERY, include the dispute
+query text and name only the offending line ids, never the whole invoice. If the decision is
+ROUTE_TO_HANDLER, call Exception_Router_Agent with the same invoice_id.
+Never return a decision without its evidence array. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool", "Exception_Router_Agent"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 10 - Exception Router. Owns the fixed five-value taxonomy.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Exception_Router_Agent",
+            "function": {
+                "description": "Assigns the exception reason from the fixed five-value taxonomy, writes the explanation and the pre-filled next action, and prioritises the queue by value and age.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "exception" for the given invoice_id.
+The exception reason must be exactly one of: missing_or_invalid_identifiers, failed_claim_matching,
+disputed_or_out_of_tolerance, high_value, policy_or_coverage_ambiguity. Never invent a reason
+outside that list.
+
+For every exception return the reason, a clear explanation of the issue, the pre-filled next action
+as a structured object with action type, target and draft content, and the queue priority.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 11 - Communications.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Communications_Agent",
+            "function": {
+                "description": "Generates status-based notifications to suppliers, insurers and customers for the five canonical invoice statuses, and logs every outbound message.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "communications" for the given invoice_id.
+The status trigger must be one of: Received, Queried, Approved, Paid, Awaiting information.
+Report, per audience, the channel and a short summary of the message content. Keep supplier-facing
+wording plain and specific about what is needed and by when. Never include PII in the summary.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Agent 12 - Payment & Write-back. Enforces segregation of duties.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Payment_And_Writeback_Agent",
+            "function": {
+                "description": "Routes approved invoices into the payment workflow by integration or RPA per supplier configuration, performs ICE write-back and enforces segregation of duties and value thresholds.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Call invoice_pipeline_tool with stage "payment" for the given invoice_id.
+Report the payment path actually used (integration or RPA), the payment reference, the ICE
+write-back status, and who authorised versus who released. State explicitly that the identity that
+authorises cannot be the identity that releases. If the invoice was not approved, report that no
+payment was raised rather than inventing one. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Shared coded tool. Deterministic logic (rate arithmetic, tolerance maths, VAT, payment
+        # adapters, ICE write-back) lives here, never in the LLM, per spec section 11.1.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "invoice_pipeline_tool",
+            "function": {
+                "description": "Deterministically classifies, extracts, redacts, matches, validates, routes, pays and writes back one invoice, returning either the full result or one pipeline stage.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."},
+                        "stage": {
+                            "type": "string",
+                            "description": "Which stage view to return: intake, extraction, redaction, matching, rate_card, entitlement, tolerance, settlement, exception, communications, payment, or full.",
+                            "enum": [
+                                "intake",
+                                "extraction",
+                                "redaction",
+                                "matching",
+                                "rate_card",
+                                "entitlement",
+                                "tolerance",
+                                "settlement",
+                                "exception",
+                                "communications",
+                                "payment",
+                                "full"
+                            ]
+                        }
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "class": "coded_tools.invoice_to_pay.invoice_pipeline_tool.InvoicePipelineTool"
+        }
+    ]
+}
