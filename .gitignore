@@ -214,3 +214,9 @@ mytests/
 # Front-end build artifacts for bundled apps
 apps/*/frontend/node_modules/
 apps/*/frontend/dist/
+
+# Upstream example agent networks: kept locally, excluded from this deployment repo
+registries/basic/
+registries/experimental/
+registries/industry/
+registries/tools/

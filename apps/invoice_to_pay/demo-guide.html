@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CMP-UC-002 · Automated Invoice &amp; Outlay Validation — Demo Guide</title>
+<style>
+  :root {
+    --text: #173793;
+    --muted: #5a6b85;
+    --primary: #0033a0;
+    --primary-dark: #00297f;
+    --accent: #00a5c9;
+    --violet: #6b4fd8;
+    --bg: #eef2f8;
+    --surface: #ffffff;
+    --surface2: #eff4fa;
+    --border: #dbe3ef;
+    --border-light: #e6ecf5;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --shadow: 0 1px 3px rgba(10, 37, 64, 0.06), 0 8px 24px rgba(10, 37, 64, 0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px 80px; }
+
+  header.hero {
+    background: linear-gradient(135deg, var(--primary) 0%, #123a9e 55%, var(--violet) 100%);
+    color: #fff;
+    padding: 56px 24px 64px;
+  }
+  .hero-inner { max-width: 1060px; margin: 0 auto; }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; font-weight: 800;
+    opacity: 0.82; margin: 0 0 12px;
+  }
+  h1 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.12; margin: 0 0 14px; font-weight: 800; letter-spacing: -0.02em; }
+  .hero p.lede { font-size: 18px; max-width: 74ch; margin: 0; opacity: 0.94; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+  .pill {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 999px; padding: 5px 13px; font-size: 12.5px; font-weight: 700;
+  }
+
+  section { margin-top: 46px; }
+  h2 {
+    font-size: 25px; font-weight: 800; letter-spacing: -0.01em;
+    margin: 0 0 6px; display: flex; align-items: center; gap: 11px;
+  }
+  h2 .n {
+    flex: none; width: 30px; height: 30px; border-radius: 9px;
+    background: var(--primary); color: #fff;
+    font-size: 14px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  h3 { font-size: 16.5px; font-weight: 800; margin: 26px 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 20px; max-width: 80ch; }
+  p { margin: 0 0 14px; }
+  a { color: var(--primary); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 24px; box-shadow: var(--shadow); margin-bottom: 16px;
+  }
+  .card h3:first-child { margin-top: 0; }
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .g4 { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); }
+
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-size: 27px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+  .stat span { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+  .stat.ok b { color: var(--success); }
+  .stat.warn b { color: var(--warning); }
+  .stat.bad b { color: var(--danger); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 800; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface2); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  code, .mono { font-family: "Cascadia Code", Consolas, "SF Mono", monospace; font-size: 12.8px; }
+  code { background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+  pre {
+    background: #0e1b3d; color: #d8e2f7; border-radius: 11px; padding: 15px 17px;
+    overflow-x: auto; font-family: "Cascadia Code", Consolas, monospace; font-size: 12.6px; line-height: 1.65;
+    margin: 0 0 14px;
+  }
+  pre .c { color: #7f95c4; }
+  pre .k { color: #7fd3ff; }
+  pre .g { color: #6ee7b7; }
+
+  .chip {
+    display: inline-block; border-radius: 999px; padding: 2px 10px;
+    font-size: 11.5px; font-weight: 700; border: 1px solid;
+  }
+  .chip.blue { background: #eef3ff; border-color: #c7d7fb; color: var(--primary); }
+  .chip.teal { background: #e7f8fc; border-color: #b6e8f3; color: #0d7490; }
+  .chip.green { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+  .chip.amber { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  .chip.red { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+  .chip.violet { background: #f2effd; border-color: #d9d0fa; color: #5b3fc4; }
+
+  ul, ol { margin: 0 0 14px; padding-left: 22px; }
+  li { margin-bottom: 7px; }
+  ul.tight li { margin-bottom: 4px; }
+
+  .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; }
+  .lane { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--surface); box-shadow: var(--shadow); }
+  .lane .hd { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .lane b { font-size: 23px; font-weight: 800; display: block; letter-spacing: -0.02em; }
+  .lane small { color: var(--muted); font-size: 12.5px; }
+  .lane.l1 { border-top: 3px solid var(--warning); } .lane.l1 .hd { color: var(--warning); }
+  .lane.l2 { border-top: 3px solid var(--accent); }  .lane.l2 .hd { color: #0d7490; }
+  .lane.l3 { border-top: 3px solid var(--success); } .lane.l3 .hd { color: var(--success); }
+  .lane.l4 { border-top: 3px solid var(--danger); }  .lane.l4 .hd { color: var(--danger); }
+
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin-bottom: 8px; }
+  .step {
+    flex: 1 1 148px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 11px; padding: 11px 13px; box-shadow: var(--shadow); position: relative;
+  }
+  .step i { font-style: normal; font-size: 11px; font-weight: 800; color: var(--accent); letter-spacing: 0.05em; }
+  .step b { display: block; font-size: 13.5px; margin: 2px 0 3px; }
+  .step span { font-size: 12px; color: var(--muted); display: block; line-height: 1.45; }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: #f3fbfd;
+    border-radius: 0 12px 12px 0; padding: 15px 19px; margin-bottom: 16px;
+  }
+  .callout.warn { border-left-color: var(--warning); background: #fffbeb; }
+  .callout.gap { border-left-color: var(--danger); background: #fef6f6; }
+  .callout p:last-child, .card p:last-child { margin-bottom: 0; }
+  .callout b.lbl { display: block; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
+
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+
+  @media print {
+    body { background: #fff; }
+    header.hero { background: var(--primary) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .card, .stat, .lane, .step { box-shadow: none; break-inside: avoid; }
+    section { break-inside: avoid-page; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <p class="eyebrow">CMP-UC-002 · Agentic AI prototype</p>
+    <h1>Automated Invoice &amp; Outlay Validation</h1>
+    <p class="lede">
+      UK insurance claims finance teams pay thousands of supplier invoices a month — garages, hire car
+      firms, medical providers — and check each one by hand against a contracted rate card. This demo
+      shows a network of twelve cooperating AI agents doing that checking, paying the clean invoices
+      automatically, and handing a human only the ones that genuinely need judgement — with every
+      decision written to an audit trail that cannot be edited.
+    </p>
+    <div class="pills">
+      <span class="pill">12 LLM agents + 1 shared coded tool</span>
+      <span class="pill">Neuro SAN orchestration</span>
+      <span class="pill">React + FastAPI walkthrough UI</span>
+      <span class="pill">Hash-chained audit log</span>
+      <span class="pill">15 measured evaluation metrics</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ─────────── 1. THE PROBLEM ─────────── -->
+  <section>
+    <h2><span class="n">1</span> The problem, in one paragraph</h2>
+    <p class="sub">Why this use case is worth automating at all.</p>
+
+    <div class="card">
+      <p>
+        A customer crashes their car. The insurer authorises a repair and a hire car. Weeks later,
+        invoices arrive from a garage and a hire company — by email, by portal, as PDFs of wildly
+        different layouts. Somebody in finance has to open each one and ask: <em>is this the right
+        claim? is this covered by the policy? did we authorise this much? and is the rate the one we
+        actually contracted?</em>
+      </p>
+      <p>
+        Most invoices are fine. The value is in catching the few that aren't — 14 days of hire car
+        billed against 10 days approved, a service charged at a rate from a superseded card, the same
+        invoice submitted twice — <strong>before</strong> the money leaves. Checking every invoice by
+        hand to catch the small minority is slow, inconsistent, and doesn't scale as claim volume grows.
+      </p>
+      <div class="callout">
+        <b class="lbl">The goal</b>
+        <p>
+          Pay the clean invoices with no human touch. Route the problem ones to a person with the
+          problem already diagnosed, explained, and a draft action pre-filled. Never let the machine
+          pay itself.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 2. TWO HALVES ─────────── -->
+  <section>
+    <h2><span class="n">2</span> How the demo is built: two halves</h2>
+    <p class="sub">Understanding the split is the key to demoing it well — they are two views of the same process.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3><span class="chip violet">The brain</span> Neuro SAN agent network</h3>
+        <p>
+          Twelve LLM agents, declared in a single HOCON file, arranged as a tree. A <strong>front man</strong>
+          (the Invoice Orchestrator) receives the request and delegates down the chain to specialists.
+          Each agent has a <code>description</code> so its peers know <em>when</em> to call it, and
+          <code>instructions</code> telling it <em>how</em> to do its job.
+        </p>
+        <p>
+          They all share one <strong>coded tool</strong> that does the deterministic arithmetic and data
+          lookups. The agents reason about <em>what to check and what it means</em>; the tool guarantees
+          the numbers are exact. Sensitive customer data travels between them as <code>sly_data</code>,
+          never through the prompt.
+        </p>
+        <p><span class="chip blue">Registry</span> <span class="mono">registries/apps/invoice_to_pay.hocon</span></p>
+      </div>
+
+      <div class="card">
+        <h3><span class="chip teal">The window</span> React walkthrough UI</h3>
+        <p>
+          Thirteen screens over a FastAPI backend, showing what a finance team would actually sit in
+          front of: a work queue, an exceptions workspace, a payment board, supplier scorecards, rate
+          cards, analytics, and the audit trail.
+        </p>
+        <p>
+          The backend runs the same pipeline logic <strong>deterministically</strong>, so the demo gives
+          identical numbers every time and needs no LLM calls to walk through. That's deliberate: you can
+          demo the whole business story offline, then switch to the live agent network to show the
+          reasoning.
+        </p>
+        <p><span class="chip blue">Runs on</span> <span class="mono">localhost:5174</span> → API <span class="mono">localhost:8095</span></p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b class="lbl">How to say it in one line</b>
+      <p>
+        &ldquo;The agent network is <em>how the decision gets made</em>. The React app is
+        <em>what the business sees and controls</em>. Same pipeline, two audiences —
+        and the audit log is the thread that proves they agree.&rdquo;
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────── 3. THE AGENTS ─────────── -->
+  <section>
+    <h2><span class="n">3</span> The twelve agents and what each one asks</h2>
+    <p class="sub">Every agent answers exactly one question. That's what makes the decision explainable.</p>
+
+    <div class="card" style="padding-top:14px;">
+      <table>
+        <thead>
+          <tr><th style="width:30px">#</th><th>Agent</th><th>The question it answers</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><strong>Invoice Orchestrator</strong> <span class="chip blue">front man</span></td><td>Which specialists does this invoice need, and in what order?</td></tr>
+          <tr><td>2</td><td>Intake &amp; Classification</td><td>Where did this arrive from, and what kind of document is it?</td></tr>
+          <tr><td>3</td><td>Extraction</td><td>What are the line items, units, rates and dates — and how confident am I?</td></tr>
+          <tr><td>4</td><td>Redaction &amp; Privacy</td><td>What personal data must be masked before anything else sees this?</td></tr>
+          <tr><td>5</td><td>Claim Matching</td><td>Which claim does this belong to, and how sure am I?</td></tr>
+          <tr><td>6</td><td>Rate Card Validation</td><td>Was each line charged at the rate we contracted?</td></tr>
+          <tr><td>7</td><td>Entitlement &amp; Coverage</td><td>Does the policy actually cover this service?</td></tr>
+          <tr><td>8</td><td>Tolerance &amp; Variance</td><td>Is the difference big enough to be worth arguing about?</td></tr>
+          <tr><td>9</td><td>Settlement &amp; Dispute</td><td>Approve, query the supplier, or hold for information?</td></tr>
+          <tr><td>10</td><td>Exception Router</td><td>Which of the five exception types is this, and who should handle it?</td></tr>
+          <tr><td>11</td><td>Payment &amp; Writeback</td><td>Pay it, and record it back against the claim.</td></tr>
+          <tr><td>12</td><td>Audit &amp; Explainability</td><td>Write down what was decided, on what evidence, by whom.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <b class="lbl">The guardrail worth pointing out</b>
+      <p>
+        Agent 8 asks whether a variance is <em>material</em>, not merely whether one exists. A 40p
+        rounding difference is not a dispute. Tolerance is configured, not hardcoded — currently
+        <strong>5% AND £25</strong>, and a line must breach <em>both</em> to be flagged. That one
+        decision is the difference between a useful system and one that floods the team with noise.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────── 4. THE JOURNEY ─────────── -->
+  <section>
+    <h2><span class="n">4</span> One invoice, end to end</h2>
+    <p class="sub">The path every invoice takes. Follow this order when you demo.</p>
+
+    <div class="flow">
+      <div class="step"><i>STEP 1</i><b>Arrives</b><span>Email, portal or API. Channel and layout recorded.</span></div>
+      <div class="step"><i>STEP 2</i><b>Read</b><span>Lines, units, rates, dates extracted with a confidence score.</span></div>
+      <div class="step"><i>STEP 3</i><b>Redacted</b><span>Emails, phones, postcodes masked before onward processing.</span></div>
+      <div class="step"><i>STEP 4</i><b>Matched</b><span>Tied to a claim; unmatched ones become an exception.</span></div>
+    </div>
+    <div class="flow">
+      <div class="step"><i>STEP 5</i><b>Validated</b><span>Each line checked against the rate card in force, the policy and the authorised units.</span></div>
+      <div class="step"><i>STEP 6</i><b>Judged</b><span>Material variance? Duplicate? High value? Decide approve / query / hold.</span></div>
+      <div class="step"><i>STEP 7</i><b>Authorised</b><span>A human signs off anything above the value threshold.</span></div>
+      <div class="step"><i>STEP 8</i><b>Released</b><span>A <em>different</em> human releases the payment. Written back to the claim.</span></div>
+    </div>
+
+    <div class="callout">
+      <b class="lbl">Every step writes to the audit log</b>
+      <p>
+        Each event carries the actor, the before and after state, and a SHA-256 hash of the previous
+        event. Change any historic record and the chain breaks visibly. The Audit Trail screen shows
+        <span class="chip green">hash chain valid</span> live — that is the compliance story in one badge.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────── 5. WHERE MONEY IS SAVED ─────────── -->
+  <section>
+    <h2><span class="n">5</span> The five exception types</h2>
+    <p class="sub">A fixed taxonomy — deliberately small, so the queue stays triageable and reporting stays comparable.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <ul class="tight">
+          <li><span class="chip red">1</span> <strong>Missing or invalid identifiers</strong> — no usable claim or supplier reference.</li>
+          <li><span class="chip red">2</span> <strong>Failed claim matching</strong> — can't confidently tie it to a claim.</li>
+          <li><span class="chip red">3</span> <strong>Disputed or out of tolerance</strong> — charged more than contracted, materially.</li>
+          <li><span class="chip red">4</span> <strong>High value</strong> — above the threshold; a human must look, regardless.</li>
+          <li><span class="chip red">5</span> <strong>Policy or coverage ambiguity</strong> — unclear whether the policy covers it.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What a handler actually gets</h3>
+        <p>
+          Not &ldquo;this invoice failed&rdquo;. They get the reason, a plain-English explanation, the
+          specific lines at fault, the value at risk, and a <strong>pre-drafted next action</strong> —
+          a supplier query with the rate-card evidence already quoted, ready to send in one click.
+        </p>
+        <p>
+          The queue is ordered by <strong>value at risk, then age</strong>, so the biggest exposure is
+          always on top. Executing an action marks it complete with a green tick and removes the button,
+          so the same query can never go out twice.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 6. THE SCREENS ─────────── -->
+  <section>
+    <h2><span class="n">6</span> What to show, in what order</h2>
+    <p class="sub">A ten-minute walkthrough that builds the argument rather than touring features.</p>
+
+    <div class="card" style="padding-top:14px;">
+      <table>
+        <thead><tr><th style="width:26px"></th><th>Screen</th><th>Point to make</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>Dashboard</strong></td><td>Open with the headline: straight-through rate, exceptions open, leakage prevented, cycle time. &ldquo;Here's the estate.&rdquo;</td></tr>
+          <tr><td>2</td><td><strong>Invoice Work Queue</strong></td><td>Volume and variety — channels, statuses, suppliers. Then click into one invoice.</td></tr>
+          <tr><td>3</td><td><strong>Invoice drilldown</strong></td><td>The money shot. Redacted document, line-by-line variance waterfall, the agent trace showing each agent's confidence, and <em>Send back to supplier</em> with a composed query.</td></tr>
+          <tr><td>4</td><td><strong>Exceptions</strong></td><td>The five types, prioritised by value. Execute a next action — watch it tick green and the button vanish.</td></tr>
+          <tr><td>5</td><td><strong>Approvals &amp; Payments</strong></td><td>The four-lane board. Authorise one item as Alice, then try to release it as Alice — <strong>refused</strong>. Release as Ben — succeeds. This is the control story.</td></tr>
+          <tr><td>6</td><td><strong>Claim 360</strong></td><td>&ldquo;What did this one accident actually cost us?&rdquo; Reserve gauge, every supplier, approved units vs billed units.</td></tr>
+          <tr><td>7</td><td><strong>Rate Cards</strong></td><td>The governance finding: cards past their review date that are <em>still the version in force</em>, validating live invoices.</td></tr>
+          <tr><td>8</td><td><strong>Agent Studio</strong></td><td>Drag the twelve-agent graph, then press <em>Play a run</em> and watch the front man fan out. Bridges to the Neuro SAN half.</td></tr>
+          <tr><td>9</td><td><strong>Audit Trail</strong></td><td>Close on <span class="chip green">hash chain valid</span>. &ldquo;Nothing here can be quietly rewritten.&rdquo;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <b class="lbl">Tip</b>
+      <p>
+        A global search bar sits on every screen (<code>Ctrl</code>+<code>K</code>). It finds invoices,
+        claims, suppliers, rate cards and exceptions — and module names too, so it doubles as a
+        jump-to-page palette when you need to move fast in front of an audience.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────── 7. CONTROLS ─────────── -->
+  <section>
+    <h2><span class="n">7</span> The controls that make it safe</h2>
+    <p class="sub">The part a risk or audit stakeholder will ask about first.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>Segregation of duties</h3>
+        <p>
+          The identity that authorises a payment <strong>cannot</strong> release it. Attempting it is
+          refused and the refusal itself is logged. Demo it live — it's the single most convincing
+          moment in the walkthrough.
+        </p>
+      </div>
+      <div class="card">
+        <h3>No double payment</h3>
+        <p>
+          Releasing an already-released payment is rejected rather than retried, so a double-click or a
+          network retry can't pay a supplier twice. The rejection is audited too.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Privacy by default</h3>
+        <p>
+          Personal data is masked at step 3, before validation or agent reasoning sees the document.
+          Every mask is logged with the rule that caused it, so you can prove what was hidden and why.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Human override, always</h3>
+        <p>
+          A handler can overrule any recommendation — but the reason is mandatory and the original
+          machine recommendation is preserved alongside it. You can always reconstruct what the system
+          advised versus what the human did.
+        </p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <b class="lbl">Say this plainly</b>
+      <p>
+        The agents never move money on their own. They decide <em>what is true about an invoice</em>.
+        Two separate humans move the money, and the machine records both of them.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────── 8. NUMBERS ─────────── -->
+  <section>
+    <h2><span class="n">8</span> The numbers in the demo</h2>
+    <p class="sub">Synthetic but deterministic: the same figures appear every run, so you can rehearse against them.</p>
+
+    <h3>Payment board, as seeded</h3>
+    <div class="lanes">
+      <div class="lane l1">
+        <div class="hd">Needs authorisation</div>
+        <b>76</b><small>£262,290 · above the value threshold, held for a human</small>
+      </div>
+      <div class="lane l2">
+        <div class="hd">Awaiting release</div>
+        <b>0</b><small>fills the moment you authorise something on screen</small>
+      </div>
+      <div class="lane l3">
+        <div class="hd">Released</div>
+        <b>1,400</b><small>£850,948 · settled and written back to the claim</small>
+      </div>
+      <div class="lane l4">
+        <div class="hd">Blocked</div>
+        <b>40</b><small>£42,369 · duplicates, never paid</small>
+      </div>
+    </div>
+
+    <h3>Evaluation harness</h3>
+    <p>
+      Fifteen metrics, each scored by an <strong>independent oracle</strong> rather than by the pipeline
+      grading its own homework: extraction accuracy and calibration (ECE), redaction recall and false
+      positives, claim-matching F1, re-rating arithmetic, tolerance decisions, duplicate detection,
+      exception-reason accuracy, explanation quality and audit completeness.
+    </p>
+    <div class="grid g4">
+      <div class="stat ok"><b>15 / 15</b><span>metrics genuinely measured</span></div>
+      <div class="stat"><b>0.70</b><span>straight-through rate</span></div>
+      <div class="stat ok"><b>valid</b><span>audit hash chain</span></div>
+      <div class="stat"><b>12</b><span>agents in the network</span></div>
+    </div>
+    <div class="callout">
+      <b class="lbl">Be honest about this if asked</b>
+      <p>
+        The explanation-quality score is a <strong>5-point rubric</strong>, not an LLM judge. It checks
+        that an explanation names the reason, the lines, the amounts and the evidence — it does not
+        assess whether the prose reads well. Chasing three red metrics during build is what surfaced
+        three genuine bugs in the seed data, which is the argument for having the harness at all.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────── 9. RUN IT ─────────── -->
+  <section>
+    <h2><span class="n">9</span> Running the demo</h2>
+    <p class="sub">Full instructions live in <span class="mono">apps/invoice_to_pay/run.md</span>. This is the short version.</p>
+
+    <div class="card">
+      <h3>The UI half — no LLM keys needed</h3>
+<pre><span class="c"># backend (warms the whole estate at startup, ~7s)</span>
+python -m uvicorn apps.invoice_to_pay.backend.app.main:app --port <span class="k">8095</span>
+
+<span class="c"># front end</span>
+cd apps/invoice_to_pay/frontend
+npm install
+npm run dev        <span class="c"># → http://localhost:5174</span></pre>
+
+      <h3>The agent half — needs a configured LLM provider</h3>
+<pre><span class="c"># serves the agent network + the nsflow inspector</span>
+python -m neuro_san_studio run --server-http-port <span class="k">8081</span> --nsflow-port <span class="k">4174</span>
+
+<span class="c"># then open http://localhost:4174 and pick:</span>
+<span class="g">apps/invoice_to_pay</span></pre>
+
+      <div class="callout warn">
+        <b class="lbl">Two things that will trip you up</b>
+        <p>
+          The Neuro SAN server <strong>does not hot-reload</strong> agent files — restart it after editing
+          the HOCON. And credentials come from the environment or <code>.env</code> only: never put a key
+          in a HOCON file.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 10. LIMITS ─────────── -->
+  <section>
+    <h2><span class="n">10</span> What this is not</h2>
+    <p class="sub">Know these before someone else finds them. Saying them first builds credibility.</p>
+
+    <div class="card">
+      <div class="grid g2">
+        <div>
+          <h3 style="margin-top:0">Prototype boundaries</h3>
+          <ul class="tight">
+            <li>All data is <strong>in memory</strong> — restarting resets the estate.</li>
+            <li>Data is <strong>synthetic</strong>; no real claim, customer or supplier exists here.</li>
+            <li>Payment and claim-system writeback are <strong>mocked adapters</strong>.</li>
+            <li>PDF evidence packs export as JSON; the PDF rendition is stubbed.</li>
+            <li>No authentication or role-based access control — identities are demo strings.</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin-top:0">Known gaps against the specification</h3>
+          <ul class="tight">
+            <li>Split invoicing across multiple claims.</li>
+            <li>Fuzzy claim matching beyond the deterministic rules.</li>
+            <li>OCR bounding boxes for click-to-source evidence.</li>
+            <li>Retry with backoff, idempotent ingestion, dead-letter handling.</li>
+            <li>Extraction-template learning from corrections.</li>
+            <li>Rate-card selection ignores the service date, so a mid-claim card change isn't honoured.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout gap" style="margin-top:18px; margin-bottom:0">
+        <b class="lbl">Frame it this way</b>
+        <p>
+          The prototype proves the <em>decision architecture</em> — that twelve narrow agents plus a
+          deterministic tool can validate an invoice, explain the outcome, and keep a human in control
+          of the money. Durable storage, real integrations and access control are engineering work on
+          a settled design, not open questions.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────── 11. THE PITCH ─────────── -->
+  <section>
+    <h2><span class="n">11</span> The 60-second version</h2>
+    <div class="card">
+      <p style="font-size:16px">
+        &ldquo;Claims finance teams pay thousands of supplier invoices a month and check each one by hand
+        against a contracted rate card. Most are fine — the value is catching the few that aren't,
+        before the money goes out.
+      </p>
+      <p style="font-size:16px">
+        We built a network of twelve AI agents that each answer one narrow question: <em>is this the
+        right claim, does the policy cover it, did we authorise this much, is this the rate we agreed,
+        and is the difference material?</em> The arithmetic is done by deterministic code, so the
+        numbers are exact; the agents handle the judgement and the explanation.
+      </p>
+      <p style="font-size:16px">
+        Clean invoices pay themselves. The rest reach a person already diagnosed, with the disputed
+        lines identified and a supplier query drafted. Two different humans are required to move any
+        money, and every decision — including every refusal and override — lands in an audit log
+        that breaks visibly if anyone edits history.
+      </p>
+      <p style="font-size:16px; margin-bottom:0">
+        Same pipeline, two views: <strong>Agent Studio</strong> shows how the decision is made,
+        the <strong>finance screens</strong> show what the business controls.&rdquo;
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <strong>CMP-UC-002 — Automated Invoice &amp; Outlay Validation.</strong>
+    Prototype demo guide · self-contained, no external assets · print or share as-is.<br />
+    Reference material: <span class="mono">apps/invoice_to_pay/run.md</span> ·
+    agent network: <span class="mono">registries/apps/invoice_to_pay.hocon</span> ·
+    all figures from the deterministic synthetic seed.
+  </footer>
+
+</div>
+</body>
+</html>
