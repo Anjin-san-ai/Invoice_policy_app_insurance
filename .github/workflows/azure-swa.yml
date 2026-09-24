@@ -24,7 +24,7 @@ jobs:
           app_location: 'apps/invoice_to_pay/frontend'
           output_location: 'dist'
         env:
-          # Build-time API targets — set these repo secrets to the deployed backend URLs,
-          # e.g. https://invoice-api.<region>.azurecontainerapps.io and its wss:// form.
-          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
-          VITE_WS_BASE: ${{ secrets.VITE_WS_BASE }}
+          # Build-time API targets. Default to the deployed invoice-api Container App;
+          # set repo secrets VITE_API_BASE / VITE_WS_BASE to override for other environments.
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE || 'https://invoice-api.blackmushroom-c43b8556.swedencentral.azurecontainerapps.io' }}
+          VITE_WS_BASE: ${{ secrets.VITE_WS_BASE || 'wss://invoice-api.blackmushroom-c43b8556.swedencentral.azurecontainerapps.io' }}
