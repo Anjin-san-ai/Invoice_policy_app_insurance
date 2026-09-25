@@ -21,8 +21,8 @@ import { navigate } from '../router';
 /** Left navigation modules, in the order mandated by spec section 13.2. */
 export const NAV = [
   { path: '/dashboard', label: 'Dashboard', Icon: Gauge },
-  { path: '/queue', label: 'Invoice Work Queue', Icon: FileText },
   { path: '/claims', label: 'Claim 360', Icon: Radar },
+  { path: '/queue', label: 'Invoice Work Queue', Icon: FileText },
   { path: '/exceptions', label: 'Exceptions', Icon: ListChecks },
   { path: '/disputes', label: 'Disputes', Icon: MessageSquareWarning },
   { path: '/approvals', label: 'Approvals & Payments', Icon: CreditCard },

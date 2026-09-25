@@ -56,7 +56,7 @@ export function Approvals() {
       );
       setOutcome({
         kind: 'ok',
-        text: `${item.payment_id} released by ${actor} via the ${result.path} route. ICE write-back ${result.ice_writeback_status}, reference ${result.reference}.`,
+        text: `${item.payment_id} released by ${actor} via the ${result.path} route. Invoice write-back ${result.ice_writeback_status}, reference ${result.reference}.`,
       });
       board.reload();
     } catch (cause) {

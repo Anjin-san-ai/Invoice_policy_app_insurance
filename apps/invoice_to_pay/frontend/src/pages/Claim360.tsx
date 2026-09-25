@@ -26,7 +26,7 @@ function ClaimList() {
 
       <article className="card">
         <div className="filters">
-          <input aria-label="Search claims" onChange={(event) => setSearch(event.target.value)} placeholder="Claim id or ICE reference" value={search} />
+          <input aria-label="Search claims" onChange={(event) => setSearch(event.target.value)} placeholder="Claim id or Invoice reference" value={search} />
         </div>
         {loading ? (
           <Loading />
@@ -38,7 +38,7 @@ function ClaimList() {
           <div className="tableWrap">
             <table>
               <thead>
-                <tr><th>Claim</th><th>ICE reference</th><th>Incident</th><th className="num">Invoices</th><th className="num">Suppliers</th><th className="num">Invoiced</th><th className="num">Paid</th><th className="num">Open</th><th className="num">Variance</th><th>Reserve used</th></tr>
+                <tr><th>Claim</th><th>Invoice reference</th><th>Incident</th><th className="num">Invoices</th><th className="num">Suppliers</th><th className="num">Invoiced</th><th className="num">Paid</th><th className="num">Open</th><th className="num">Variance</th><th>Reserve used</th></tr>
               </thead>
               <tbody>
                 {data.map((row, index) => {

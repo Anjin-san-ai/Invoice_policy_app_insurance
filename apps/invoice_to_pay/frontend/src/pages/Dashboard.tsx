@@ -52,7 +52,7 @@ export function Dashboard() {
       <PageHead
         eyebrow="Claims finance Agentic App"
         title="Automated invoice and outlay validation"
-        sub="Audit-ready capture, redaction, claim matching, re-rating, exception routing, payment and ICE write-back across the seeded demo estate."
+        sub="Audit-ready capture, redaction, claim matching, re-rating, exception routing, payment and Invoice write-back across the seeded demo estate."
         actions={<button className="btn" onClick={() => navigate('/queue')} type="button">Open work queue</button>}
       />
 
