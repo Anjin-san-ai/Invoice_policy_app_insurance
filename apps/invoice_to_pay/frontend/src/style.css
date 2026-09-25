@@ -666,11 +666,17 @@ pre { white-space: pre-wrap; word-break: break-word; background: var(--surface-2
 /* Panel slides in from the right and owns its own scroll. */
 .theoPanel {
   position: fixed; right: 20px; bottom: 90px; z-index: 175;
-  width: min(440px, calc(100vw - 40px)); max-height: calc(100vh - 130px);
+  width: min(440px, calc(100vw - 40px));
+  /* A definite height, not max-height: the conversation inside is the only scroller, and it can
+     only size itself against a parent that has actually committed to a height. With max-height
+     the content overflowed and pushed the composer out of reach. */
+  height: min(660px, calc(100vh - 130px));
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-overlay); overflow: hidden; display: flex;
 }
-.theoPanel .theoScreen { height: 100%; max-width: none; margin: 0; flex: 1; min-width: 0; }
+.theoPanel .theoScreen { height: 100%; max-width: none; margin: 0; flex: 1; min-width: 0; min-height: 0; }
+.theoPanel .theoConversation { flex: 1; min-height: 0; overflow-y: auto; }
+.theoPanel .theoBar, .theoPanel .theoComposer, .theoPanel .theoError { flex-shrink: 0; }
 .theoPanel .theoBar { border: 0; border-bottom: 1px solid var(--border-light); border-radius: 0; box-shadow: none; padding: 12px 14px; }
 .theoPanel .theoConversation { padding: 16px 14px; gap: 18px; }
 .theoPanel .theoComposer { border: 0; border-top: 1px solid var(--border-light); border-radius: 0; box-shadow: none; }
