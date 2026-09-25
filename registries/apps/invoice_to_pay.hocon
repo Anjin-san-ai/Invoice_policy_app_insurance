@@ -170,7 +170,7 @@ the unredacted value in your answer; describe the region only. Return JSON only.
         {
             "name": "Claim_Matching_Agent",
             "function": {
-                "description": "Matches the invoice to a claim in ICE by claim reference, supplier reference and intelligent matching, returning match method and confidence.",
+                "description": "Matches the invoice to a claim in the Invoice system by claim reference, supplier reference and intelligent matching, returning match method and confidence.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -357,7 +357,7 @@ Return JSON only.
         {
             "name": "Payment_And_Writeback_Agent",
             "function": {
-                "description": "Routes approved invoices into the payment workflow by integration or RPA per supplier configuration, performs ICE write-back and enforces segregation of duties and value thresholds.",
+                "description": "Routes approved invoices into the payment workflow by integration or RPA per supplier configuration, performs Invoice write-back and enforces segregation of duties and value thresholds.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -368,7 +368,7 @@ Return JSON only.
             },
             "instructions": """
 Call invoice_pipeline_tool with stage "payment" for the given invoice_id.
-Report the payment path actually used (integration or RPA), the payment reference, the ICE
+Report the payment path actually used (integration or RPA), the payment reference, the Invoice
 write-back status, and who authorised versus who released. State explicitly that the identity that
 authorises cannot be the identity that releases. If the invoice was not approved, report that no
 payment was raised rather than inventing one. Return JSON only.
@@ -379,7 +379,7 @@ payment was raised rather than inventing one. Return JSON only.
 
         # ------------------------------------------------------------------------------------
         # Shared coded tool. Deterministic logic (rate arithmetic, tolerance maths, VAT, payment
-        # adapters, ICE write-back) lives here, never in the LLM, per spec section 11.1.
+        # adapters, Invoice write-back) lives here, never in the LLM, per spec section 11.1.
         # ------------------------------------------------------------------------------------
         {
             "name": "invoice_pipeline_tool",
