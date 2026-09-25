@@ -26,7 +26,7 @@ function ClaimList() {
 
       <article className="card">
         <div className="filters">
-          <input aria-label="Search claims" onChange={(event) => setSearch(event.target.value)} placeholder="Claim id or Invoice reference" value={search} />
+          <input aria-label="Search claims" onChange={(event) => setSearch(event.target.value)} placeholder="Claim id" value={search} />
         </div>
         {loading ? (
           <Loading />
@@ -38,7 +38,7 @@ function ClaimList() {
           <div className="tableWrap">
             <table>
               <thead>
-                <tr><th>Claim</th><th>Invoice reference</th><th>Incident</th><th className="num">Invoices</th><th className="num">Suppliers</th><th className="num">Invoiced</th><th className="num">Paid</th><th className="num">Open</th><th className="num">Variance</th><th>Reserve used</th></tr>
+                <tr><th>Claim</th><th>Incident</th><th className="num">Invoices</th><th className="num">Suppliers</th><th className="num">Invoiced</th><th className="num">Paid</th><th className="num">Open</th><th className="num">Variance</th><th>Reserve used</th></tr>
               </thead>
               <tbody>
                 {data.map((row, index) => {
@@ -53,7 +53,6 @@ function ClaimList() {
                       transition={{ delay: Math.min(index * 0.015, 0.4) }}
                     >
                       <td className="mono">{row.claim.id}</td>
-                      <td className="mono">{row.claim.invoice_claim_ref}</td>
                       <td className="mono">{row.claim.incident_date}</td>
                       <td className="num">{row.invoice_count}</td>
                       <td className="num">{row.supplier_count}</td>
@@ -90,8 +89,8 @@ function ClaimDetail({ claimId }: { claimId: string }) {
     <>
       <PageHead
         eyebrow="Claim 360"
-        title={data.claim.invoice_claim_ref}
-        sub={`${data.claim.id} · incident ${data.claim.incident_date} · ${data.invoices.length} invoices from ${data.suppliers.length} supplier${data.suppliers.length === 1 ? '' : 's'}`}
+        title={data.claim.id}
+        sub={`Incident ${data.claim.incident_date} · ${data.invoices.length} invoices from ${data.suppliers.length} supplier${data.suppliers.length === 1 ? '' : 's'}`}
         actions={
           <>
             <button className="btn secondary" onClick={() => navigate('/claims')} type="button">
