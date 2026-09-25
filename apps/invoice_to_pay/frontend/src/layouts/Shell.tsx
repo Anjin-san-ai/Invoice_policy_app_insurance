@@ -27,7 +27,7 @@ export const NAV = [
   { path: '/disputes', label: 'Disputes', Icon: MessageSquareWarning },
   { path: '/approvals', label: 'Approvals & Payments', Icon: CreditCard },
   { path: '/suppliers', label: 'Suppliers', Icon: Users },
-  { path: '/rate-cards', label: 'Rate Cards', Icon: Tags },
+  { path: '/rate-cards', label: 'Policies', Icon: Tags },
   { path: '/analytics', label: 'Analytics', Icon: BarChart3 },
   { path: '/benefits', label: 'Benefits Tracker', Icon: PiggyBank },
   { path: '/audit', label: 'Audit Trail', Icon: ShieldCheck },

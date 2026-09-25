@@ -94,11 +94,11 @@ export function GlobalSearch() {
       <div className="searchField">
         <Search size={16} />
         <input
-          aria-label="Search invoices, claims, suppliers, rate cards and modules"
+          aria-label="Search invoices, claims, suppliers, policies and modules"
           onChange={(event) => setTerm(event.target.value)}
           onFocus={() => { if (data) setOpen(true); }}
           onKeyDown={onKeyDown}
-          placeholder="Search invoices, claims, suppliers, rate cards…"
+          placeholder="Search invoices, claims, suppliers, policies…"
           ref={inputRef}
           type="search"
           value={term}
@@ -126,7 +126,7 @@ export function GlobalSearch() {
               {loading ? ' · searching…' : ''}
             </p>
             {data.groups.length === 0 ? (
-              <p className="searchEmpty">Nothing matched. Try an invoice number, claim reference, supplier or rate card id.</p>
+              <p className="searchEmpty">Nothing matched. Try an invoice number, claim reference, supplier or policy id.</p>
             ) : (
               data.groups.map((group) => (
                 <div className="searchGroup" key={group.key}>

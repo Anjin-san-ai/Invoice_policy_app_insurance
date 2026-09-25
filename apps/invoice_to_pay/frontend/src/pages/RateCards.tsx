@@ -63,13 +63,13 @@ export function RateCards() {
   return (
     <>
       <PageHead
-        eyebrow="Rate card dependency"
-        title="Rate card registry"
-        sub="Effective-dated contracts that every charge is validated against. A card past its review date is flagged stale, and a stale card still in force is the one to worry about."
+        eyebrow="Policy dependency"
+        title="Policy registry"
+        sub="Effective-dated contracts that every charge is validated against. A policy past its review date is flagged stale, and a stale policy still in force is the one to worry about."
       />
 
       <section className="chipRow section">
-        <StatChip label="Rate cards" value={all.length} />
+        <StatChip label="Policies" value={all.length} />
         <StatChip label="In force" tone="ok" value={all.filter((card) => card.is_in_force).length} />
         <StatChip label="Stale" tone={stale.length ? 'bad' : 'ok'} value={stale.length} />
         <StatChip label="Stale and in force" tone={staleInForce.length ? 'bad' : 'ok'} value={staleInForce.length} />
@@ -81,7 +81,7 @@ export function RateCards() {
       {staleInForce.length > 0 ? (
         <p className="banner warn">
           <AlertTriangle size={16} />
-          {staleInForce.length} rate card{staleInForce.length === 1 ? ' is' : 's are'} past their review date but still being
+          {staleInForce.length} polic{staleInForce.length === 1 ? 'y is' : 'ies are'} past their review date but still being
           used to validate live invoices. Charges are being checked against contracts nobody has re-confirmed.
         </p>
       ) : null}
@@ -91,15 +91,15 @@ export function RateCards() {
         <button className={`filterChip${filter === 'in_force' ? ' on' : ''}`} onClick={() => setFilter('in_force')} type="button">In force</button>
         <button className={`filterChip${filter === 'stale' ? ' on' : ''}`} onClick={() => setFilter('stale')} type="button">Stale ({stale.length})</button>
         <button className={`filterChip${filter === 'variance' ? ' on' : ''}`} onClick={() => setFilter('variance')} type="button">Found variance</button>
-        <input aria-label="Search rate cards" onChange={(event) => setSearch(event.target.value)} placeholder="Card id or supplier" value={search} />
+        <input aria-label="Search policies" onChange={(event) => setSearch(event.target.value)} placeholder="Policy id or supplier" value={search} />
       </div>
 
       {cards.loading ? (
         <Loading rows={4} />
       ) : cards.error ? (
-        <Empty>Could not load rate cards: {cards.error}</Empty>
+        <Empty>Could not load policies: {cards.error}</Empty>
       ) : rows.length === 0 ? (
-        <Empty>No rate cards match these filters.</Empty>
+        <Empty>No policies match these filters.</Empty>
       ) : (
         <section className="grid rateGrid">
           {rows.map((card, index) => {
