@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, Hash, Home, LogIn, Mail, Phone, ShieldCheck, User } from 'lucide-react';
+import { ArrowRight, Hash, Home, LogIn, Mail, Phone, ShieldCheck, Star, User } from 'lucide-react';
 import { useState } from 'react';
-import { EmotingAgent } from '../components/EmotingAgent';
 import { CustomerProfile } from '../types';
 
 /** Identities that exist in the seeded estate, so a booth visitor can sign in and see real claims. */
@@ -59,15 +58,9 @@ export function PortalLogin({ onSignIn }: { onSignIn: (profile: CustomerProfile)
 
   return (
     <div className="loginWrap">
+      {/* The photograph carries the left side; only the review scores sit over it. */}
       <motion.div animate={{ opacity: 1, y: 0 }} className="loginArt" initial={{ opacity: 0, y: 16 }}>
-        <EmotingAgent mood="idle" showMood={false} size={250} variant="full" />
-        <h1 className="stageTitle">
-          Welcome to <em>Cognizant Motor Claims</em>
-        </h1>
-        <p className="stageBlurb">
-          Sign in with your policy details and Theo will take your claim in a couple of minutes — or
-          check on a claim you have already made.
-        </p>
+        <RatingStrip />
       </motion.div>
 
       <motion.form
@@ -81,6 +74,8 @@ export function PortalLogin({ onSignIn }: { onSignIn: (profile: CustomerProfile)
         }}
         transition={{ delay: 0.08 }}
       >
+        <h1 className="loginLead">Sign in with your details to track your claim or make a new claim</h1>
+
         <div className="loginHead">
           <span className="portalMark">
             <ShieldCheck size={19} />
@@ -138,5 +133,51 @@ export function PortalLogin({ onSignIn }: { onSignIn: (profile: CustomerProfile)
         </p>
       </motion.form>
     </div>
+  );
+}
+
+/** Review scores, as the social proof a public claims sign-in would carry.
+ *
+ * The figures are placeholders. A real deployment would render them from the Trustpilot and Google
+ * Business Profile APIs rather than hard-coding them, so they are kept in one place to swap out.
+ */
+function RatingStrip() {
+  const sources = [
+    { name: 'Trustpilot', score: 4.6, count: '12,480', blurb: 'Excellent' },
+    { name: 'Google', score: 4.7, count: '8,215', blurb: 'Rated by our customers' },
+  ] as const;
+
+  return (
+    <section className="ratingStrip">
+      {sources.map((source, index) => (
+        <motion.div
+          animate={{ opacity: 1, y: 0 }}
+          className="ratingCard"
+          initial={{ opacity: 0, y: 14 }}
+          key={source.name}
+          transition={{ delay: 0.25 + index * 0.08 }}
+        >
+          <div className="ratingTop">
+            <b>{source.name}</b>
+            <span className="ratingScore">{source.score.toFixed(1)}</span>
+            <small>out of 5</small>
+          </div>
+          <div aria-label={`${source.score} out of 5 stars`} className="ratingStars" role="img">
+            {[0, 1, 2, 3, 4].map((position) => (
+              <Star
+                // A part-earned final star is outlined rather than filled, so the score is honest.
+                fill={position < Math.floor(source.score) ? 'currentColor' : 'none'}
+                key={position}
+                size={15}
+                strokeWidth={2.2}
+              />
+            ))}
+          </div>
+          <small className="ratingMeta">
+            {source.blurb} · {source.count} reviews
+          </small>
+        </motion.div>
+      ))}
+    </section>
   );
 }

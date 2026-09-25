@@ -13,11 +13,12 @@ import {
   Sparkles,
   Tags,
   User,
+  X,
 } from 'lucide-react';
 import { ChangeEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { apiPost } from '../api/client';
-import { AgentMood, EmotingAgent } from '../components/EmotingAgent';
-import { MuteButton } from '../components/MuteButton';
+import { AgentMood, EmotingAgent } from './EmotingAgent';
+import { MuteButton } from './MuteButton';
 import { navigate } from '../router';
 import { useSpeech } from '../theme/useSpeech';
 import { AssistantAnswer } from '../types';
@@ -44,7 +45,8 @@ const PROMPT_CARDS = [
  * quotes is computed by the backend from live data, and each answer carries the detail behind it
  * plus the screens that prove it.
  */
-export function AskTheo() {
+export function TheoWidget() {
+  const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -91,8 +93,37 @@ export function AskTheo() {
   }
 
   return (
-    <div className="theoScreen">
-      <header className="theoBar">
+    <>
+      {/* Launcher: bottom right on every insurer screen. */}
+      <motion.button
+        className={`theoLauncher${open ? ' open' : ''}`}
+        onClick={() => setOpen((current) => !current)}
+        title={open ? 'Close Theo' : 'Ask Theo'}
+        type="button"
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.97 }}
+      >
+        {open ? (
+          <X size={22} />
+        ) : (
+          <>
+            <EmotingAgent mood={mood} showMood={false} size={40} />
+            <span className="theoLauncherLabel">Ask Theo</span>
+          </>
+        )}
+      </motion.button>
+
+      <AnimatePresence>
+        {open ? (
+          <motion.aside
+            animate={{ opacity: 1, x: 0 }}
+            className="theoPanel"
+            exit={{ opacity: 0, x: 26 }}
+            initial={{ opacity: 0, x: 26 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          >
+            <div className="theoScreen">
+              <header className="theoBar">
         <EmotingAgent mood={mood} showMood={false} size={started ? 52 : 64} />
         <div className="theoBarText">
           <b>Theo</b>
@@ -267,7 +298,11 @@ export function AskTheo() {
           <Send size={17} />
         </button>
       </div>
-    </div>
+            </div>
+          </motion.aside>
+        ) : null}
+      </AnimatePresence>
+    </>
   );
 }
 

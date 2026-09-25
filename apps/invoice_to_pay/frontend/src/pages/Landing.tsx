@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, Camera, CreditCard, Radar, ShieldCheck, Sparkles, Users } from 'lucide-react';
-import { EmotingAgent } from '../components/EmotingAgent';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { navigate } from '../router';
 
@@ -22,13 +21,13 @@ const DOORS = [
   },
   {
     id: 'insurer',
-    // Lands on Ask Theo rather than the dashboard: a handler's day starts with what needs them.
-    path: '/ask-eva',
+    // Theo is a floating widget inside the workspace now, so this lands on the dashboard.
+    path: '/dashboard',
     eyebrow: 'For claims and finance teams',
     title: 'Insurer portal',
     blurb:
       'The back-office workspace: ask Theo what needs you, triage customer claims, instruct suppliers, and validate every supplier invoice against the policy and rate card before it is paid.',
-    cta: 'Ask Theo what needs me',
+    cta: 'Open the workspace',
     points: [
       { Icon: Sparkles, text: 'Ask Theo anything about the claim estate' },
       { Icon: Users, text: 'Claim 360 with incident evidence and photographs' },
@@ -40,9 +39,9 @@ const DOORS = [
 /** Front door. Sends each audience to the right product rather than defaulting to the back office. */
 export function Landing() {
   return (
-    <div className="portal">
+    <div className="portal hasBackdrop" data-backdrop="bg1">
       <header className="portalBar">
-        <div className="portalBrand">
+        <button className="portalBrand" onClick={() => navigate('/')} type="button">
           <span className="portalMark">
             <ShieldCheck size={20} />
           </span>
@@ -50,26 +49,12 @@ export function Landing() {
             <b>Cognizant Motor Claims</b>
             <small>Claims intake and invoice-to-pay prototype</small>
           </div>
-        </div>
+        </button>
         <ThemeToggle />
       </header>
 
-      <div className="portalBody">
-        <motion.section
-          animate={{ opacity: 1, y: 0 }}
-          className="landingHero"
-          initial={{ opacity: 0, y: 14 }}
-        >
-          <EmotingAgent mood="idle" showMood={false} size={180} variant="full" />
-          <h1 className="heroTitle">
-            One claim, <em>end to end</em>
-          </h1>
-          <p className="stageBlurb" style={{ maxWidth: '54ch' }}>
-            A customer reports an incident to an AI assistant; the back office triages it, instructs the
-            suppliers, and every invoice that comes back is checked automatically before a penny is paid.
-          </p>
-        </motion.section>
-
+      {/* No hero copy: the photograph sets the scene and the two cards say the rest. */}
+      <div className="portalBody landingBody">
         <section className="landingDoors">
           {DOORS.map((door, index) => (
             <motion.button

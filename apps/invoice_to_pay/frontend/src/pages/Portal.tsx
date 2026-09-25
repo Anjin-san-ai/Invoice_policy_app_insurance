@@ -24,6 +24,7 @@ import {
 } from '../components/NotificationBell';
 import { PhotoGallery } from '../components/PhotoGallery';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { navigate } from '../router';
 import { useSpeech } from '../theme/useSpeech';
 import { CustomerProfile, IntakeState, SEVERITY_LABEL } from '../types';
 import { ClaimTracker } from './ClaimTracker';
@@ -207,9 +208,10 @@ export function Portal() {
 
   if (!profile) {
     return (
-      <div className="portal">
+      <div className="portal hasBackdrop" data-backdrop="bg3">
         <header className="portalBar">
-          <div className="portalBrand">
+          {/* Top left always returns to the front door. */}
+          <button className="portalBrand" onClick={() => navigate('/')} type="button">
             <span className="portalMark">
               <ShieldCheck size={20} />
             </span>
@@ -217,7 +219,7 @@ export function Portal() {
               <b>Cognizant Motor Claims</b>
               <small>Report and track a claim in minutes</small>
             </div>
-          </div>
+          </button>
           <ThemeToggle />
         </header>
         <div className="portalBody">
@@ -228,9 +230,10 @@ export function Portal() {
   }
 
   return (
-    <div className="portal">
+    // bg3 stays behind the customer portal after sign-in too, not just on the login screen.
+    <div className="portal hasBackdrop" data-backdrop="bg3">
       <header className="portalBar">
-        <div className="portalBrand">
+        <button className="portalBrand" onClick={() => navigate('/')} type="button">
           <span className="portalMark">
             <ShieldCheck size={20} />
           </span>
@@ -238,7 +241,7 @@ export function Portal() {
             <b>Cognizant Motor Claims</b>
             <small>Report and track a claim in minutes</small>
           </div>
-        </div>
+        </button>
         <div className="portalTabs">
           <button className={`portalTab${tab === 'new' ? ' on' : ''}`} onClick={() => setTab('new')} type="button">
             <Sparkles size={14} /> New claim

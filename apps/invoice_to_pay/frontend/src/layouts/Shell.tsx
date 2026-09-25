@@ -3,19 +3,18 @@ import {
   CreditCard,
   FileText,
   Gauge,
-  Home,
   ListChecks,
   MessageSquareWarning,
   PiggyBank,
   Radar,
   ScrollText,
   ShieldCheck,
-  Sparkles,
   Tags,
   Users,
 } from 'lucide-react';
 import { ReactNode } from 'react';
 import { GlobalSearch } from '../components/GlobalSearch';
+import { TheoWidget } from '../components/TheoWidget';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { navigate } from '../router';
 
@@ -25,11 +24,9 @@ import { navigate } from '../router';
  * deliberately not reachable from inside the staff workspace. Ask Theo sits directly under Home
  * because a handler's day starts with "what needs me", not with a dashboard. */
 const NAV_GROUPS = [
-  // The front door on its own: it is the only way to the customer portal.
-  [{ path: '/', label: 'Home', Icon: Home }],
-  // The daily path through a claim, in the order the work actually happens.
+  // The daily path through a claim, in the order the work actually happens. There is no Home item:
+  // the brand in the top left is the way back to the front door, and Theo is a floating widget.
   [
-    { path: '/ask-theo', label: 'Ask Theo', Icon: Sparkles },
     { path: '/dashboard', label: 'Dashboard', Icon: Gauge },
     { path: '/claims', label: 'Claim 360', Icon: Radar },
     { path: '/queue', label: 'Invoice Work Queue', Icon: FileText },
@@ -56,10 +53,14 @@ export const NAV = NAV_GROUPS.flat();
 
 export function Shell({ activePath, children }: { activePath: string; children: ReactNode }) {
   return (
-    <div className="shell">
+    // The insurer portal keeps bg2 behind every module, so the whole app is photographic.
+    <div className="shell hasBackdrop" data-backdrop="bg2">
       <aside className="sidebar">
-        <div className="brand">CMP-UC-002</div>
-        <p className="brandSub">Invoice to pay</p>
+        {/* Top left returns to the front door, the same as on the customer side. */}
+        <button className="brandBtn" onClick={() => navigate('/')} type="button">
+          <span className="brand">CMP-UC-002</span>
+          <small className="brandSub">Invoice to pay</small>
+        </button>
         <nav aria-label="Modules">
           {NAV_GROUPS.map((group, groupIndex) => (
             <div key={group[0].path}>
@@ -91,13 +92,23 @@ export function Shell({ activePath, children }: { activePath: string; children: 
         </p>
       </aside>
       <main className="content">
-        {/* One search bar for every screen: it lives in the shell, not in each page. */}
+        {/* One search bar for every screen: it lives in the shell, not in each page. The brand
+            repeats here because the sidebar is hidden on narrow screens, and the brand must always
+            be a way back to the front door. */}
         <div className="topBar">
+          <button className="topBrand" onClick={() => navigate('/')} title="Back to the front door" type="button">
+            <span className="portalMark">
+              <ShieldCheck size={17} />
+            </span>
+            <b>Cognizant</b>
+          </button>
           <GlobalSearch />
           <ThemeToggle />
         </div>
         {children}
       </main>
+      {/* Theo follows the handler across every module rather than owning a page of his own. */}
+      <TheoWidget />
     </div>
   );
 }

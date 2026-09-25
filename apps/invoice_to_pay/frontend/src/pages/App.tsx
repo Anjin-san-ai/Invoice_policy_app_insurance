@@ -4,7 +4,6 @@ import { Shell } from '../layouts/Shell';
 import { BACK_OFFICE_PATH, DEFAULT_PATH, useRoute } from '../router';
 import { Analytics } from './Analytics';
 import { Approvals } from './Approvals';
-import { AskTheo } from './AskTheo';
 import { AuditTrail } from './AuditTrail';
 import { Benefits } from './Benefits';
 import { Claim360 } from './Claim360';
@@ -67,8 +66,6 @@ export function App() {
         return <Benefits />;
       case '/audit':
         return <AuditTrail />;
-      case '/ask-theo':
-        return <AskTheo />;
       case BACK_OFFICE_PATH:
       default:
         return <Dashboard />;
