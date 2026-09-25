@@ -31,7 +31,7 @@
     # fan out to eleven down-chain LLM agents, so the budget is larger than a flat network would need.
     # Bounded deliberately: the deterministic pipeline itself finishes in milliseconds, the time is LLM
     # round-trips. Narrow questions hit one stage agent and return well inside this envelope.
-    "max_steps": 200,
+    "max_steps": 320,
     "max_execution_seconds": 300,
     "error_formatter": "json",
 
@@ -77,6 +77,7 @@ state travels in sly_data. No recommendation may be returned without its evidenc
                 "to_tracing": {"sly_data": ["invoice_state"]}
             },
             "tools": [
+                "Claim_Lifecycle_Orchestrator",
                 "Intake_And_Classification_Agent",
                 "Extraction_Agent",
                 "Redaction_Agent",
@@ -86,6 +87,411 @@ state travels in sly_data. No recommendation may be returned without its evidenc
                 "Communications_Agent",
                 "Payment_And_Writeback_Agent"
             ],
+            "structure_formats": "json"
+        },
+
+        # ====================================================================================
+        # Claim lifecycle cluster. These are the agents the Claim 360 screen shows working a
+        # claim, in the same four phases: triage, supplier assignment, work in progress, then
+        # invoice validation and settlement. The invoice-side agents below are reused by the
+        # fourth phase rather than duplicated, which is why the two views agree.
+        # ====================================================================================
+
+        # ------------------------------------------------------------------------------------
+        # Claim Lifecycle Orchestrator. Owns a claim from customer intake to supplier settlement.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Claim_Lifecycle_Orchestrator",
+            "function": {
+                "description": "Runs a motor claim end to end: triage, supplier assignment, work tracking and settlement, returning the state of every phase.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+You own one claim from the moment a customer reports it to the moment every supplier is settled.
+Work the four phases in order and do not skip ahead: a claim cannot be dispatched before it is
+triaged, and an invoice cannot be validated before the work is complete.
+
+1. Call Claim_Triage_Agent to establish cover, severity and which services are needed.
+2. Call Supplier_Assignment_Agent to select suppliers and authorise the spend.
+3. Call Work_In_Progress_Agent to track each supplier's job and keep the customer informed.
+4. When a supplier submits an invoice, hand it to Rate_Card_Validation_Agent and then
+   Settlement_And_Dispute_Agent, and let Payment_And_Writeback_Agent release it.
+
+Report which phase each supplier is in and name the agent that produced each conclusion. Never
+state a phase is complete unless the down-chain agent said so. Return JSON only.
+""",
+            "tools": [
+                "Claim_Triage_Agent",
+                "Supplier_Assignment_Agent",
+                "Work_In_Progress_Agent",
+                "Rate_Card_Validation_Agent",
+                "Settlement_And_Dispute_Agent",
+                "Payment_And_Writeback_Agent",
+                "Audit_Agent"
+            ],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Phase 1 - Claim triage. Runs once per claim, before any supplier is instructed.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Claim_Triage_Agent",
+            "function": {
+                "description": "Triages a newly reported claim: reads the incident, checks cover, assesses severity and decides which supplier services are needed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Triage the claim by calling your down-chain agents and combining what they return.
+Ask Claim_Intake_Assistant what the customer actually reported, Evidence_Agent what the
+photographs show, Policy_Checker_Agent whether the incident is covered, Severity_Assessor_Agent
+how bad it is, and Service_Planner_Agent which services follow from that.
+State the recommended services and the reserve, and say explicitly that a handler must confirm
+them before any supplier is instructed. Return JSON only.
+""",
+            "tools": [
+                "Claim_Intake_Assistant",
+                "Evidence_Agent",
+                "Policy_Checker_Agent",
+                "Severity_Assessor_Agent",
+                "Service_Planner_Agent"
+            ],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Claim_Intake_Assistant",
+            "function": {
+                "description": "Takes a claim conversationally from the policyholder, filling the vehicle and incident details from free text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+You are Theo, the customer-facing claims assistant. Report what the policyholder told you in their
+own words, and which details you captured: vehicle registration, what happened, when, where the
+vehicle is now, the damage, and whether it can be driven.
+The policyholder's name, address, contact details and insurance number come from portal sign-in, so
+never claim to have asked for them. Say explicitly which details are still missing. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Evidence_Agent",
+            "function": {
+                "description": "Triages the photographs attached to a claim and tags the damage they show.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Report how many photographs are held against the claim and what each one shows: the impact area and
+which panels are affected. Where no photographs were supplied, say so and state that a physical
+inspection will be needed. Do not infer damage that the photographs do not show. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Policy_Checker_Agent",
+            "function": {
+                "description": "Checks the policy behind a claim: cover type, entitlements, limits and the excess the policyholder owes.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Report the cover type, which services the policy entitles the policyholder to, the coverage limit
+for each, and the excess. Name any requested service the policy does NOT entitle them to, because
+that is a coverage ambiguity a handler has to resolve before the service is instructed.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Severity_Assessor_Agent",
+            "function": {
+                "description": "Assesses how severe the damage is and what reserve the claim should be opened with.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Assess severity as exactly one of minor, moderate, major or total_loss, from the incident narrative,
+the photographs and whether the vehicle is drivable. State the reserve that severity implies and the
+reasoning in one sentence. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Service_Planner_Agent",
+            "function": {
+                "description": "Decides which supplier services a claim needs, from its severity and whether the vehicle is drivable.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Recommend services from the fixed set repair, recovery, hire and storage. Repair applies to every
+claim. Recovery applies when the vehicle is not drivable. Hire applies when the vehicle is not
+drivable or the severity is major or worse. Storage applies when it is both.
+Justify each recommendation in one clause, and never recommend a service the policy does not cover.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Phase 2 - Supplier assignment. One work order per authorised service.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Supplier_Assignment_Agent",
+            "function": {
+                "description": "Instructs suppliers for the authorised services: selects from the panel, authorises the spend and issues the work orders.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+For each confirmed service, ask Supplier_Selector_Agent which firm should do it,
+Authorisation_Agent what units and value to authorise, and Rate_Card_Validation_Agent which
+contracted rate the order is priced against. Then have Communications_Agent issue the instruction
+and tell the customer who is coming.
+Report one work order per service with its supplier, units and authorised value. Never instruct a
+service that triage did not recommend. Return JSON only.
+""",
+            "tools": [
+                "Supplier_Selector_Agent",
+                "Authorisation_Agent",
+                "Rate_Card_Validation_Agent",
+                "Communications_Agent"
+            ],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Supplier_Selector_Agent",
+            "function": {
+                "description": "Selects a supplier from the approved panel for one service on one claim.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."},
+                        "service_type": {"type": "string", "description": "One of repair, recovery, hire or storage."}
+                    },
+                    "required": ["claim_id", "service_type"]
+                }
+            },
+            "instructions": """
+Select a supplier whose type fulfils the requested service, and report its id, name, payment path
+and whether it has an extraction template for its invoice layout. Name the supplier's current
+rate-card compliance and dispute rate, because a poor performer is a decision a handler may want to
+override. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Authorisation_Agent",
+            "function": {
+                "description": "Authorises the units and value a supplier may charge for one service, before the work starts.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."},
+                        "service_type": {"type": "string", "description": "One of repair, recovery, hire or storage."}
+                    },
+                    "required": ["claim_id", "service_type"]
+                }
+            },
+            "instructions": """
+Authorise units and value up front, because that authorisation is what the supplier's eventual
+invoice is validated against. Report the authorised units, the authorised value, who authorised it
+and when. State that any charge beyond this is an entitlement breach for the validation cluster to
+catch. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Phase 3 - Work in progress. Tracks each supplier and keeps the customer informed.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Work_In_Progress_Agent",
+            "function": {
+                "description": "Tracks each supplier's progress on a claim and notifies the customer at every step.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Ask Work_Order_Tracker_Agent where each work order has got to, SLA_Monitor_Agent whether any job has
+stalled, and Communications_Agent to push the customer an update for each transition.
+Report the status of every work order and name any that are overdue. A claim is only ready for
+invoicing once every work order is complete. Return JSON only.
+""",
+            "tools": ["Work_Order_Tracker_Agent", "SLA_Monitor_Agent", "Communications_Agent"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Work_Order_Tracker_Agent",
+            "function": {
+                "description": "Reports where each supplier work order on a claim has reached in its lifecycle.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Report each work order's status from the fixed sequence dispatched, accepted, in_progress, completed,
+invoiced, with the date of each transition that has happened. Never report a status the data does not
+show, and never skip a step in the sequence. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "SLA_Monitor_Agent",
+            "function": {
+                "description": "Flags supplier work orders that have stalled against their expected duration.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "claim_id": {"type": "string", "description": "Claim id such as CLM-00002."}
+                    },
+                    "required": ["claim_id"]
+                }
+            },
+            "instructions": """
+Compare how long each open work order has been in its current status against what that service
+normally takes, and name any that are overdue along with how long they have been sitting. Where
+nothing is overdue, say so plainly rather than inventing a concern. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        # ------------------------------------------------------------------------------------
+        # Phase 4 support - duplicate blocking, approval decision and the audit chain. The rest
+        # of phase 4 is the invoice validation cluster defined below.
+        # ------------------------------------------------------------------------------------
+        {
+            "name": "Duplicate_Detector_Agent",
+            "function": {
+                "description": "Blocks a supplier invoice that has already been submitted against the same work.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Determine whether this invoice repeats one already received from the same supplier, by invoice number,
+by work order, or by matching lines and dates. Name the original invoice when you find one, and state
+that a duplicate must be blocked outright rather than queried. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Approval_Agent",
+            "function": {
+                "description": "Decides whether a validated supplier invoice should be paid, queried or held for a handler.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "invoice_id": {"type": "string", "description": "Invoice id such as INVREC-000001."}
+                    },
+                    "required": ["invoice_id"]
+                }
+            },
+            "instructions": """
+Decide exactly one of pay, query or hold, from what the validation cluster found. Pay only when every
+line is within tolerance, the authorisation covers the charge and no exception was raised. Query when
+a specific line is wrong and name that line. Hold when a human must decide, and say what they need to
+decide. State your reason in one sentence and never approve a charge you cannot evidence.
+Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
+            "structure_formats": "json"
+        },
+
+        {
+            "name": "Audit_Agent",
+            "function": {
+                "description": "Confirms every decision on a claim or invoice was written to the immutable hash-chained audit log.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "entity_id": {"type": "string", "description": "Claim or invoice id to verify the audit chain for."}
+                    },
+                    "required": ["entity_id"]
+                }
+            },
+            "instructions": """
+Report how many audit events exist for this entity, the event types in order, and whether the hash
+chain verifies. If the chain does not verify, say so first and plainly: it is the strongest signal
+the record has been tampered with. Return JSON only.
+""",
+            "tools": ["invoice_pipeline_tool"],
             "structure_formats": "json"
         },
 
@@ -213,7 +619,7 @@ Report per line: charged amount, expected amount, variance in GBP and percent, t
 version applied, and whether that rate card is stale. Do not do the arithmetic yourself; the tool is
 authoritative. Return JSON only.
 """,
-            "tools": ["invoice_pipeline_tool", "Entitlement_And_Authorisation_Agent", "Tolerance_And_Anomaly_Agent"],
+            "tools": ["invoice_pipeline_tool", "Entitlement_And_Authorisation_Agent", "Tolerance_And_Anomaly_Agent", "Duplicate_Detector_Agent"],
             "structure_formats": "json"
         },
 
@@ -292,7 +698,7 @@ query text and name only the offending line ids, never the whole invoice. If the
 ROUTE_TO_HANDLER, call Exception_Router_Agent with the same invoice_id.
 Never return a decision without its evidence array. Return JSON only.
 """,
-            "tools": ["invoice_pipeline_tool", "Exception_Router_Agent"],
+            "tools": ["invoice_pipeline_tool", "Exception_Router_Agent", "Approval_Agent"],
             "structure_formats": "json"
         },
 

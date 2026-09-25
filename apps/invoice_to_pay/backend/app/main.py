@@ -12,13 +12,17 @@ from fastapi import WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from apps.invoice_to_pay.backend.app.services.agent_network import AgentNetworkTopology
 from apps.invoice_to_pay.backend.app.services.analytics import AnalyticsService
+from apps.invoice_to_pay.backend.app.services.assistant import BackOfficeAssistant
+from apps.invoice_to_pay.backend.app.services.claim_agents import ClaimAgentWorkflowService
+from apps.invoice_to_pay.backend.app.services.claim_intake import ClaimIntakeService
 from apps.invoice_to_pay.backend.app.services.claim_overview import ClaimOverviewService
 from apps.invoice_to_pay.backend.app.services.payment_board import PaymentBoardService
 from apps.invoice_to_pay.backend.app.services.pipeline import InvoicePipelineService
 from apps.invoice_to_pay.backend.app.services.repository import InvoiceRepository
 from apps.invoice_to_pay.backend.app.services.search import SearchService
+from apps.invoice_to_pay.backend.app.services.tracking import ClaimTrackingService
+from apps.invoice_to_pay.backend.app.services.work_orders import WorkOrderService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +43,13 @@ class AppContainer:
         self.claims = ClaimOverviewService(self.repository)
         self.board = PaymentBoardService(self.repository)
         self.search = SearchService(self.repository)
+        self.intake = ClaimIntakeService(self.repository)
+        self.work_orders = WorkOrderService(self.repository, self.pipeline)
+        self.tracking = ClaimTrackingService(self.repository)
+        self.claim_agents = ClaimAgentWorkflowService(self.repository)
+        self.assistant = BackOfficeAssistant(
+            self.repository, self.analytics, self.claims, self.board, self.search
+        )
 
     def warm_up(self) -> int:
         """Process the whole seeded dataset so every screen has data on first load.
@@ -80,7 +91,11 @@ class InvoiceToPayApp:
 
         @app.get("/api/health")
         async def health() -> dict[str, Any]:
-            return {"status": "ok", "audit_hash_chain_valid": container.repository.audit.verify()}
+            return {
+                "status": "ok",
+                "audit_hash_chain_valid": container.repository.audit.verify(),
+                "claim_assistant": container.intake.assistant.describe(),
+            }
 
         @app.post("/api/invoices/ingest")
         async def ingest(payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -274,15 +289,36 @@ class InvoiceToPayApp:
             """Return the configuration-driven thresholds and redaction rules."""
             return {"settings": container.repository.settings, "metadata": container.repository.metadata}
 
-        @app.get("/api/agent-network")
-        async def agent_network() -> dict[str, Any]:
-            """Return the Neuro SAN agent topology for the Agent Studio module."""
-            return AgentNetworkTopology.describe()
-
         @app.get("/api/claims")
         async def claims(limit: int = 60, search: str | None = None) -> list[dict[str, Any]]:
             """Return claims with their invoice, supplier and value aggregates."""
             return container.claims.list_claims(limit=limit, search=search)
+
+        @app.get("/api/assistant/suggestions")
+        async def assistant_suggestions() -> list[str]:
+            """Return the prompts Theo offers a handler on an empty screen."""
+            return list(BackOfficeAssistant.SUGGESTIONS)
+
+        @app.post("/api/assistant/ask")
+        async def assistant_ask(payload: dict[str, Any]) -> dict[str, Any]:
+            """Answer a back-office question with figures from the live estate."""
+            try:
+                return container.assistant.ask(str(payload.get("question", "")))
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        @app.get("/api/claims/{claim_id}/agent-workflows")
+        async def claim_agent_workflows(claim_id: str) -> dict[str, Any]:
+            """Return claim triage plus a four-stage agent workflow per supplier."""
+            try:
+                return container.claim_agents.workflows(claim_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        @app.get("/api/claims/statistics")
+        async def claim_statistics() -> dict[str, Any]:
+            """Return claim-side headline numbers and breakdowns for the dashboard."""
+            return container.claims.statistics()
 
         @app.get("/api/claims/{claim_id}/overview")
         async def claim_overview(claim_id: str) -> dict[str, Any]:
@@ -325,6 +361,112 @@ class InvoiceToPayApp:
         @app.get("/api/analytics/benefits")
         async def benefits() -> dict[str, Any]:
             return container.analytics.benefits()
+
+        # ---------------------------------------------------------- customer portal intake
+
+        @app.post("/api/portal/claims")
+        async def portal_start(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+            """Open a draft claim for a signed-in policyholder and return the opening turn."""
+            body = payload or {}
+            return container.intake.start(
+                {
+                    "customer_name": str(body.get("customer_name", "")),
+                    "contact_number": str(body.get("contact_number", "")),
+                    "contact_email": str(body.get("contact_email", "")),
+                    "address": str(body.get("address", "")),
+                    "insurance_number": str(body.get("insurance_number", "")),
+                }
+            )
+
+        @app.get("/api/portal/claims/{claim_id}")
+        async def portal_state(claim_id: str) -> dict[str, Any]:
+            """Return the live intake conversation state."""
+            try:
+                return container.intake.state(claim_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        @app.post("/api/portal/claims/{claim_id}/messages")
+        async def portal_message(claim_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+            """Send one customer message to the claims assistant."""
+            try:
+                return container.intake.reply(claim_id, str(payload.get("text", "")))
+            except ValueError as exc:
+                status = 404 if "Unknown claim" in str(exc) else 400
+                raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+        @app.post("/api/portal/claims/{claim_id}/attachments")
+        async def portal_attach(claim_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+            """Attach one photograph, supplied as a data URI."""
+            try:
+                return container.intake.attach(
+                    claim_id,
+                    str(payload.get("label", "")),
+                    str(payload.get("content_type", "")),
+                    str(payload.get("data_uri", "")),
+                )
+            except ValueError as exc:
+                status = 404 if "Unknown claim" in str(exc) else 400
+                raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+        @app.post("/api/portal/claims/{claim_id}/submit")
+        async def portal_submit(claim_id: str) -> dict[str, Any]:
+            """Confirm the claim and hand it to the back office."""
+            try:
+                return container.intake.submit(claim_id)
+            except ValueError as exc:
+                status = 404 if "Unknown claim" in str(exc) else 409
+                raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+        # ---------------------------------------------------------- customer claim tracking
+
+        @app.get("/api/portal/my-claims")
+        async def portal_my_claims(customer_name: str = "") -> list[dict[str, Any]]:
+            """Return every submitted claim belonging to the signed-in policyholder."""
+            return container.tracking.for_customer(customer_name)
+
+        @app.get("/api/portal/track/{reference}")
+        async def portal_track(reference: str, surname: str = "") -> dict[str, Any]:
+            """Return the customer's journey, tickmarks and notifications for a claim."""
+            try:
+                return container.tracking.find(reference, surname)
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        @app.get("/api/portal/claims/{claim_id}/notifications")
+        async def portal_notifications(claim_id: str) -> list[dict[str, Any]]:
+            """Return the notification feed for one claim, newest first."""
+            return [item.to_dict() for item in reversed(container.repository.claim_notification_list(claim_id))]
+
+        # ---------------------------------------------------------- supplier work orders
+
+        @app.get("/api/claims/{claim_id}/work-orders")
+        async def claim_work_orders(claim_id: str) -> list[dict[str, Any]]:
+            """Return the supplier work orders raised against one claim."""
+            return container.work_orders.board(claim_id)
+
+        @app.post("/api/claims/{claim_id}/dispatch")
+        async def dispatch_work(claim_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+            """Instruct suppliers for the services a handler has selected."""
+            services = payload.get("services")
+            if not isinstance(services, list) or not services:
+                raise HTTPException(status_code=400, detail="At least one service must be selected")
+            try:
+                return container.work_orders.dispatch(
+                    claim_id, [str(item) for item in services], str(payload.get("actor_id", "demo-user"))
+                )
+            except ValueError as exc:
+                status = 404 if "Unknown claim" in str(exc) else 409
+                raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+        @app.post("/api/work-orders/{work_order_id}/advance")
+        async def advance_work_order(work_order_id: str, payload: ActorRequest) -> dict[str, Any]:
+            """Move a work order to its next status; completion raises the supplier invoice."""
+            try:
+                return container.work_orders.advance(work_order_id, payload.actor_id)
+            except ValueError as exc:
+                status = 404 if "Unknown work order" in str(exc) else 409
+                raise HTTPException(status_code=status, detail=str(exc)) from exc
 
         @app.websocket("/ws/invoice-stream")
         async def invoice_stream(websocket: WebSocket) -> None:

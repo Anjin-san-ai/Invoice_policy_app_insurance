@@ -291,7 +291,7 @@ export function InvoiceDrilldown({ invoiceId }: { invoiceId: string }) {
                       <tr>
                         <td colSpan={9} style={{ paddingTop: 0 }}>
                           <details>
-                            <summary style={{ cursor: 'pointer', fontSize: 12, color: '#5a6b85' }}>Evidence applied to line {line.line_no}</summary>
+                            <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)' }}>Evidence applied to line {line.line_no}</summary>
                             <pre>{JSON.stringify(line.evidence, null, 2)}</pre>
                           </details>
                         </td>

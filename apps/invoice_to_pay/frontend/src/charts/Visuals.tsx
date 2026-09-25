@@ -1,8 +1,9 @@
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { useChartTokens } from '../theme/useTheme';
 import { gbp } from '../types';
 
-export const SERIES = ['#0033a0', '#00a5c9', '#6b4fd8', '#d97706', '#059669', '#b91c1c'];
+/* Series hues come from the active theme via useChartTokens, so they follow light/dark. */
 
 /* ------------------------------------------------------------------ radial gauge */
 
@@ -155,6 +156,7 @@ export function VarianceHeatMap({
   onSelect?: (supplierId: string) => void;
 }) {
   const [hover, setHover] = useState<string>('');
+  const tokens = useChartTokens();
   if (!rows.length) return <p className="empty">No variance recorded yet.</p>;
 
   return (
@@ -192,7 +194,15 @@ export function VarianceHeatMap({
                   key={column}
                   onMouseEnter={() => setHover(row.supplier_id)}
                   onMouseLeave={() => setHover('')}
-                  style={{ background: intensity > 0 ? `rgba(0, 51, 160, ${0.08 + intensity * 0.72})` : 'var(--surface-2)', color: intensity > 0.45 ? '#ffffff' : 'var(--text)' }}
+                  style={{
+                    background:
+                      intensity > 0
+                        ? `rgba(${tokens.heatBase}, ${0.08 + intensity * 0.72})`
+                        : 'var(--surface-2)',
+                    // Past roughly half intensity the fill is dark enough (light theme) or bright
+                    // enough (dark theme) that the label has to flip to the contrasting ink.
+                    color: intensity > 0.45 ? tokens.heatInk : 'var(--text)',
+                  }}
                   title={`${row.supplier_name} · ${column} · ${gbp(value)}`}
                   transition={{ delay: rowIndex * 0.03 + columnIndex * 0.02, duration: 0.25 }}
                 >
@@ -277,6 +287,7 @@ export function StatChip({ label, value, tone }: { label: string; value: ReactNo
 export function StackedShare({ parts, format }: { parts: Array<{ label: string; value: number }>; format?: (value: number) => string }) {
   const total = parts.reduce((sum, part) => sum + part.value, 0) || 1;
   const formatter = format ?? ((value: number) => value.toLocaleString('en-GB'));
+  const { series } = useChartTokens();
 
   return (
     <div>
@@ -286,7 +297,7 @@ export function StackedShare({ parts, format }: { parts: Array<{ label: string; 
             animate={{ width: `${(part.value / total) * 100}%` }}
             initial={{ width: 0 }}
             key={part.label}
-            style={{ background: SERIES[index % SERIES.length] }}
+            style={{ background: series[index % series.length] }}
             title={`${part.label}: ${formatter(part.value)}`}
             transition={{ delay: index * 0.08, duration: 0.6, ease: 'easeOut' }}
           />
@@ -295,7 +306,7 @@ export function StackedShare({ parts, format }: { parts: Array<{ label: string; 
       <div className="stackLegend">
         {parts.map((part, index) => (
           <span key={part.label}>
-            <i style={{ background: SERIES[index % SERIES.length] }} />
+            <i style={{ background: series[index % series.length] }} />
             {part.label} <b>{formatter(part.value)}</b>
           </span>
         ))}

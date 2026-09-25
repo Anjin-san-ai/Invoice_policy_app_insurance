@@ -222,3 +222,9 @@ registries/basic/
 registries/experimental/
 registries/industry/
 registries/tools/
+# Customer-portal claims raised at runtime; regenerated per demo, never versioned.
+apps/invoice_to_pay/data/runtime/
+# Generated demo estate. Produced deterministically by data/generator/generate_seed.py from a
+# fixed seed, and regenerated automatically by InvoiceRepository when absent, so the 4.6 MB
+# artefact is not versioned.
+apps/invoice_to_pay/data/seed/invoice_demo_data.json

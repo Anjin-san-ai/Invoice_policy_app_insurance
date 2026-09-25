@@ -1,11 +1,11 @@
-"""Backend tests for invoInvoice-to-pay prototype."""
+"""Backend tests for invoice-to-pay prototype."""
 
 from apps.invoice_to_pay.backend.app.services.pipeline import InvoicePipelineService
 from apps.invoice_to_pay.backend.app.services.repository import InvoiceRepository
 
 
 class TestInvoicePipeline:
-    """Validate mandatory invoInvoice-to-pay behaviours."""
+    """Validate mandatory invoice-to-pay behaviours."""
 
     def test_straight_through_invoice_is_paid_with_trace(self) -> None:
         repository = InvoiceRepository()

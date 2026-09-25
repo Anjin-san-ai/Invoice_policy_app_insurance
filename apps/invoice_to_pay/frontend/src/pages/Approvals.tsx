@@ -221,11 +221,16 @@ export function Approvals() {
                               className="btn swimAction"
                               disabled={busy === item.invoice_id}
                               onClick={() => release(item)}
-                              style={wouldBreach ? { background: 'var(--warning)' } : undefined}
-                              title={wouldBreach ? `${actor} authorised this payment, so releasing it will be blocked` : `Release as ${actor}`}
+                              // The segregation-of-duties outcome is explained in the tooltip and
+                              // enforced by the backend; the button reads the same for both roles.
+                              title={
+                                wouldBreach
+                                  ? `${actor} authorised this payment, so a different identity must release it`
+                                  : `Release as ${actor}`
+                              }
                               type="button"
                             >
-                              {busy === item.invoice_id ? 'Releasing…' : wouldBreach ? 'Release (will block)' : `Release as ${actor}`}
+                              {busy === item.invoice_id ? 'Releasing…' : `Release as ${actor}`}
                             </button>
                           ) : null}
 

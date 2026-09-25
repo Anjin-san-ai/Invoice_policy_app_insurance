@@ -1,10 +1,10 @@
 import { AnimatePresence } from 'framer-motion';
 import { Page } from '../animations/Page';
 import { Shell } from '../layouts/Shell';
-import { DEFAULT_PATH, useRoute } from '../router';
+import { BACK_OFFICE_PATH, DEFAULT_PATH, useRoute } from '../router';
 import { Analytics } from './Analytics';
 import { Approvals } from './Approvals';
-import { AgentStudio } from './AgentStudio';
+import { AskTheo } from './AskTheo';
 import { AuditTrail } from './AuditTrail';
 import { Benefits } from './Benefits';
 import { Claim360 } from './Claim360';
@@ -12,8 +12,9 @@ import { Dashboard } from './Dashboard';
 import { Disputes } from './Disputes';
 import { Exceptions } from './Exceptions';
 import { InvoiceDrilldown } from './InvoiceDrilldown';
+import { Landing } from './Landing';
+import { Portal } from './Portal';
 import { RateCards } from './RateCards';
-import { SettingsPage } from './SettingsPage';
 import { Suppliers } from './Suppliers';
 import { WorkQueue } from './WorkQueue';
 
@@ -24,6 +25,16 @@ export function App() {
   // Two parameterised routes: /invoice/<id> and /claim/<id>.
   const invoiceId = path.startsWith('/invoice/') ? path.slice('/invoice/'.length) : null;
   const claimId = path.startsWith('/claim/') ? path.slice('/claim/'.length) : null;
+
+  // The landing page and the customer portal are separate audiences: they render without the
+  // staff shell, sidebar or global search, so they short-circuit before Shell wraps anything.
+  if (path === DEFAULT_PATH || path === '/portal') {
+    return (
+      <AnimatePresence mode="wait">
+        <Page key={path}>{path === '/portal' ? <Portal /> : <Landing />}</Page>
+      </AnimatePresence>
+    );
+  }
 
   function screen() {
     if (invoiceId) return <InvoiceDrilldown invoiceId={invoiceId} />;
@@ -56,11 +67,9 @@ export function App() {
         return <Benefits />;
       case '/audit':
         return <AuditTrail />;
-      case '/agent-studio':
-        return <AgentStudio />;
-      case '/settings':
-        return <SettingsPage />;
-      case DEFAULT_PATH:
+      case '/ask-theo':
+        return <AskTheo />;
+      case BACK_OFFICE_PATH:
       default:
         return <Dashboard />;
     }

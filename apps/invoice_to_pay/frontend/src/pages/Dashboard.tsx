@@ -1,15 +1,15 @@
 import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { WS_BASE } from '../api/client';
 import { useApi } from '../api/useApi';
 import { ExceptionDonut, LeakageByCategory } from '../charts/Charts';
 import { FlowPipeline, RadialGauge, StackedShare, StatChip } from '../charts/Visuals';
-import { Empty, Loading } from '../components/Common';
+import { DrillCard, DrillCardBody, DrillChip, Empty, Loading } from '../components/Common';
 import { KpiCard } from '../components/KpiCard';
 import { PageHead } from '../layouts/Shell';
 import { navigate } from '../router';
-import { CycleTime, Kpis, Leakage, gbp } from '../types';
+import { ClaimStatistics, CycleTime, Kpis, Leakage, SEVERITY_LABEL, WORKFLOW_LABEL, gbp } from '../types';
 
 /* The pipeline maps onto the statuses an invoice can actually be filtered by. Extracted, Redacted
    and Matched are stages every processed invoice has passed, so they filter on the whole set. */
@@ -27,6 +27,7 @@ export function Dashboard() {
   const kpis = useApi<Kpis>('/api/analytics/kpis');
   const leakage = useApi<Leakage>('/api/analytics/leakage');
   const cycle = useApi<CycleTime>('/api/analytics/cycle-time');
+  const claims = useApi<ClaimStatistics>('/api/claims/statistics');
   const [stream, setStream] = useState<Array<{ invoice_id: string; status: string; gross_gbp: number }>>([]);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function Dashboard() {
   if (!kpis.data) return <Empty>No KPI data.</Empty>;
 
   const data = kpis.data;
+  const claimStats = claims.data;
   const distribution = cycle.data?.distribution ?? {};
   // Value sitting on invoices that have not been released yet, derived from the status mix.
   const withheld = Math.max(
@@ -56,46 +58,146 @@ export function Dashboard() {
         actions={<button className="btn" onClick={() => navigate('/queue')} type="button">Open work queue</button>}
       />
 
-      <section className="grid kpis section">
-        <KpiCard detail="Seeded six-month estate" label="Invoices received" onDrill={() => navigate('/queue')} value={data.invoices_received} />
+      {/* One line of invoice and outlay figures. */}
+      <h3 className="tierLabel">Invoices and outlay</h3>
+      <section className="grid kpis compact section">
+        <KpiCard detail="Six-month estate" drillLabel="Queue" label="Invoices" onDrill={() => navigate('/queue')} value={data.invoices_received} />
         <KpiCard
-          detail={`${data.straight_through_count.toLocaleString('en-GB')} paid with no human touch`}
+          detail={`${data.straight_through_count.toLocaleString('en-GB')} with no human touch`}
           drillLabel="View paid"
           format={(value) => `${value.toFixed(1)}%`}
-          label="Straight-through rate"
+          label="Straight through"
           onDrill={() => navigate('/queue', { status: 'Paid' })}
           value={data.straight_through_pct}
         />
-        <KpiCard detail="Across the five-reason taxonomy" drillLabel="Triage" label="Exceptions open" onDrill={() => navigate('/exceptions')} value={data.exceptions_open} />
-        <KpiCard detail="Queried or awaiting information" drillLabel="View queried" label="In supplier dispute" onDrill={() => navigate('/queue', { status: 'Queried' })} value={data.queried_or_awaiting_information} />
+        <KpiCard detail="Five-reason taxonomy" drillLabel="Triage" label="Exceptions" onDrill={() => navigate('/exceptions')} value={data.exceptions_open} />
+        <KpiCard detail="Queried with suppliers" drillLabel="Queried" label="In dispute" onDrill={() => navigate('/queue', { status: 'Queried' })} value={data.queried_or_awaiting_information} />
         <KpiCard
-          detail={`${data.payments_released_count.toLocaleString('en-GB')} invoices released`}
+          detail={`${data.payments_released_count.toLocaleString('en-GB')} released`}
+          drillLabel="Approvals"
           format={gbp}
-          label="Payments released"
+          label="Paid out"
           onDrill={() => navigate('/approvals')}
           value={data.payments_released_gbp}
         />
-        <KpiCard detail="Line-level variance stopped before payment" drillLabel="Analyse" format={gbp} label="Leakage prevented" onDrill={() => navigate('/analytics')} value={data.leakage_prevented_gbp} />
-        <KpiCard
-          detail={`p90 ${cycle.data?.p90_days ?? '-'} days`}
-          format={(value) => `${value.toFixed(1)} d`}
-          label="Median cycle time"
-          onDrill={() => navigate('/analytics')}
-          value={cycle.data?.median_days ?? data.median_invoice_to_payment_cycle_time_days}
-        />
-        <KpiCard
-          detail="Lines within contracted tolerance"
-          format={(value) => `${(value * 100).toFixed(1)}%`}
-          label="Rate card compliance"
-          onDrill={() => navigate('/rate-cards')}
-          value={data.rate_card_compliance_rate}
-        />
+        <KpiCard detail="Stopped before payment" drillLabel="Analyse" format={gbp} label="Leakage stopped" onDrill={() => navigate('/analytics')} value={data.leakage_prevented_gbp} />
       </section>
 
+      {/* ------------------------------------------------ claims ------------------------------ */}
+      {claimStats ? (
+        <>
+          <h3 className="tierLabel">Claims</h3>
+          {claimStats.awaiting_triage > 0 ? (
+            <button className="banner info bannerBtn" onClick={() => navigate('/claims')} type="button">
+              <Sparkles size={16} />
+              {claimStats.awaiting_triage} claim{claimStats.awaiting_triage === 1 ? '' : 's'} waiting on triage,
+              including customer-raised claims. Open Claim 360 to review and instruct suppliers.
+              <ChevronRight size={15} />
+            </button>
+          ) : null}
+
+          {/* One line of claim figures, compact enough to read at a glance. */}
+          <section className="grid kpis compact section">
+            <KpiCard
+              detail={`${claimStats.open_claims.toLocaleString('en-GB')} open`}
+              drillLabel="Claim 360"
+              label="Claims"
+              onDrill={() => navigate('/claims')}
+              value={claimStats.total_claims}
+            />
+            <KpiCard
+              detail="Raised in the portal"
+              drillLabel="Review"
+              label="Self-service"
+              onDrill={() => navigate('/claims')}
+              value={claimStats.portal_claims}
+            />
+            <KpiCard
+              detail="Waiting on a handler"
+              drillLabel="Triage"
+              label="Awaiting triage"
+              onDrill={() => navigate('/claims')}
+              value={claimStats.awaiting_triage}
+            />
+            <KpiCard
+              detail={`${claimStats.photographs.toLocaleString('en-GB')} photographs on file`}
+              drillLabel="Open"
+              label="Supplier jobs"
+              onDrill={() => navigate('/claims')}
+              value={claimStats.work_orders_open}
+            />
+            <KpiCard
+              detail={`${claimStats.reserve_utilisation_pct}% used`}
+              drillLabel="Claim 360"
+              format={gbp}
+              label="Reserved"
+              onDrill={() => navigate('/claims')}
+              value={claimStats.reserve_gbp}
+            />
+            <KpiCard
+              detail="Invoiced above reserve"
+              drillLabel="Investigate"
+              label="Over reserve"
+              onDrill={() => navigate('/claims')}
+              value={claimStats.over_reserve_count}
+            />
+          </section>
+
+          <section className="grid two section">
+            <DrillCard
+              drillLabel="Claim 360"
+              note="Where every claim currently sits, from triage through to the invoices arriving."
+              onDrill={() => navigate('/claims')}
+              title="Claims by stage"
+            >
+              <DrillCardBody>
+                <StackedShare
+                  parts={Object.entries(claimStats.by_stage).map(([stage, count]) => ({
+                    label: WORKFLOW_LABEL[stage] ?? stage,
+                    value: count,
+                  }))}
+                />
+              </DrillCardBody>
+              <div className="chipRow" style={{ marginTop: 16 }}>
+                {Object.entries(claimStats.by_severity).map(([severity, count]) => (
+                  <StatChip
+                    key={severity}
+                    label={SEVERITY_LABEL[severity] ?? severity}
+                    tone={severity === 'total_loss' || severity === 'major' ? 'bad' : undefined}
+                    value={count}
+                  />
+                ))}
+              </div>
+            </DrillCard>
+
+            <DrillCard
+              drillLabel="Claim 360"
+              note="What is actually happening to these vehicles, across the claim estate."
+              onDrill={() => navigate('/claims')}
+              title="Claims by incident type"
+            >
+              <DrillCardBody>
+                <LeakageByCategory
+                  data={Object.fromEntries(
+                    Object.entries(claimStats.by_incident_type).sort((left, right) => right[1] - left[1]),
+                  )}
+                  label="Claims"
+                />
+              </DrillCardBody>
+            </DrillCard>
+          </section>
+        </>
+      ) : null}
+
+      {/* ------------------------------------------------ invoices ---------------------------- */}
+      <h3 className="tierLabel">Invoice processing</h3>
       <section className="grid two section">
-        <article className="card">
-          <h2>Straight-through processing</h2>
-          <p className="cardNote">Share of invoices settled with no human involvement. Dashed marker is the 70% target.</p>
+        <DrillCard
+          drillLabel="Analytics"
+          note="Share of invoices settled with no human involvement. Dashed marker is the 70% target."
+          onDrill={() => navigate('/analytics')}
+          title="Straight-through processing"
+        >
           <div className="gaugeRow">
             <RadialGauge
               caption={`${data.straight_through_count.toLocaleString('en-GB')} of ${data.invoices_received.toLocaleString('en-GB')} invoices`}
@@ -112,53 +214,84 @@ export function Dashboard() {
               value={data.rate_card_compliance_rate}
             />
           </div>
-        </article>
-        <article className="card">
-          <h2>Where the money sits</h2>
-          <p className="cardNote">Released, still withheld pending a query, and stopped before it went out.</p>
-          <StackedShare
-            format={gbp}
-            parts={[
-              { label: 'Released', value: data.payments_released_gbp },
-              { label: 'Withheld', value: withheld },
-              { label: 'Stopped', value: data.leakage_prevented_gbp },
-            ]}
-          />
-          <div className="chipRow" style={{ marginTop: 16 }}>
-            <StatChip label="Median cycle" value={`${cycle.data?.median_days ?? '—'} d`} />
-            <StatChip label="p90 cycle" value={`${cycle.data?.p90_days ?? '—'} d`} />
-            <StatChip label="Open exceptions" tone={data.exceptions_open ? 'warn' : 'ok'} value={data.exceptions_open} />
-            <StatChip label="In dispute" tone="warn" value={data.queried_or_awaiting_information} />
-          </div>
-        </article>
+        </DrillCard>
+        <DrillCard
+          drillLabel="Approvals"
+          note="Released, still withheld pending a query, and stopped before it went out."
+          onDrill={() => navigate('/approvals')}
+          title="Where the money sits"
+        >
+          <DrillCardBody>
+            <StackedShare
+              format={gbp}
+              parts={[
+                { label: 'Released', value: data.payments_released_gbp },
+                { label: 'Withheld', value: withheld },
+                { label: 'Stopped', value: data.leakage_prevented_gbp },
+              ]}
+            />
+            <div className="chipRow" style={{ marginTop: 16 }}>
+              <DrillChip label="Median cycle" onDrill={() => navigate('/analytics')} value={`${cycle.data?.median_days ?? '—'} d`} />
+              <DrillChip label="p90 cycle" onDrill={() => navigate('/analytics')} value={`${cycle.data?.p90_days ?? '—'} d`} />
+              <DrillChip
+                label="Open exceptions"
+                onDrill={() => navigate('/exceptions')}
+                tone={data.exceptions_open ? 'warn' : 'ok'}
+                value={data.exceptions_open}
+              />
+              <DrillChip
+                label="In dispute"
+                onDrill={() => navigate('/queue', { status: 'Queried' })}
+                tone="warn"
+                value={data.queried_or_awaiting_information}
+              />
+            </div>
+          </DrillCardBody>
+        </DrillCard>
       </section>
 
-      <article className="card section">
-        <h2>Processing pipeline</h2>
-        <p className="cardNote">Every stage drills into the matching invoices. Counts reflect current invoice status.</p>
-        <FlowPipeline
-          onSelect={(stage) => {
-            const match = STAGES.find((item) => item.label === stage.label);
-            navigate('/queue', match?.status ? { status: match.status } : {});
-          }}
-          stages={STAGES.map((stage) => ({
-            label: stage.label,
-            count: stage.status ? distribution[stage.status] ?? 0 : data.invoices_received,
-          }))}
-        />
-      </article>
+      <DrillCard
+        className="section"
+        drillLabel="Work queue"
+        note="Every stage drills into the matching invoices. Counts reflect current invoice status."
+        onDrill={() => navigate('/queue')}
+        title="Processing pipeline"
+      >
+        <DrillCardBody>
+          <FlowPipeline
+            onSelect={(stage) => {
+              const match = STAGES.find((item) => item.label === stage.label);
+              navigate('/queue', match?.status ? { status: match.status } : {});
+            }}
+            stages={STAGES.map((stage) => ({
+              label: stage.label,
+              count: stage.status ? distribution[stage.status] ?? 0 : data.invoices_received,
+            }))}
+          />
+        </DrillCardBody>
+      </DrillCard>
 
       <section className="grid two section">
-        <article className="card">
-          <h2>Exception mix</h2>
-          <p className="cardNote">Click a segment to triage that reason.</p>
-          <ExceptionDonut data={data.exceptions_by_reason} onSelect={(reason) => navigate('/exceptions', { reason })} />
-        </article>
-        <article className="card">
-          <h2>Leakage prevented by service type</h2>
-          <p className="cardNote">Absolute line-level variance on lines outside tolerance.</p>
-          <LeakageByCategory data={leakage.data?.by_service_type ?? {}} label="Variance" />
-        </article>
+        <DrillCard
+          drillLabel="Exceptions"
+          note="Click a segment to triage that reason."
+          onDrill={() => navigate('/exceptions')}
+          title="Exception mix"
+        >
+          <DrillCardBody>
+            <ExceptionDonut data={data.exceptions_by_reason} onSelect={(reason) => navigate('/exceptions', { reason })} />
+          </DrillCardBody>
+        </DrillCard>
+        <DrillCard
+          drillLabel="Analytics"
+          note="Absolute line-level variance on lines outside tolerance."
+          onDrill={() => navigate('/analytics')}
+          title="Leakage prevented by service type"
+        >
+          <DrillCardBody>
+            <LeakageByCategory data={leakage.data?.by_service_type ?? {}} label="Variance" />
+          </DrillCardBody>
+        </DrillCard>
       </section>
 
       <article className="card">

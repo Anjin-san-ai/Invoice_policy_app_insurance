@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
+import { CheckCircle2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { apiPost } from '../api/client';
 import { useApi } from '../api/useApi';
 import { Sparkline } from '../charts/Visuals';
 import { ConfidenceMeter, Empty, Loading, StatusChip } from '../components/Common';
@@ -25,9 +27,28 @@ export function WorkQueue({
   const query = new URLSearchParams({ limit: initialSearch ? '2000' : '400' });
   if (status) query.set('status', status);
   if (supplierId) query.set('supplier_id', supplierId);
-  const { data, error, loading } = useApi<Invoice[]>(`/api/invoices?${query.toString()}`);
+  const { data, error, loading, reload } = useApi<Invoice[]>(`/api/invoices?${query.toString()}`);
   const [search, setSearch] = useState(initialSearch);
   const [sort, setSort] = useState<SortKey>('value');
+  const [approving, setApproving] = useState('');
+  const [note, setNote] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  /** Approve from the queue, which raises the payment and sends it to the release lane. */
+  async function approve(invoiceId: string) {
+    setApproving(invoiceId);
+    setActionError(null);
+    setNote(null);
+    try {
+      await apiPost(`/api/invoices/${invoiceId}/approve`, { actor_id: 'analyst-alice' });
+      setNote(`${invoiceId} approved and now awaiting release on Approvals & Payments.`);
+      reload();
+    } catch (cause: unknown) {
+      setActionError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setApproving('');
+    }
+  }
 
   // Adopt a new search term when the route changes, for example arriving from Claim 360.
   useEffect(() => {
@@ -102,6 +123,9 @@ export function WorkQueue({
         </p>
       ) : null}
 
+      {note ? <p className="banner ok">{note}</p> : null}
+      {actionError ? <p className="banner bad">{actionError}</p> : null}
+
       <article className="card">
         <h2>
           {rows.length.toLocaleString('en-GB')} invoice{rows.length === 1 ? '' : 's'}
@@ -127,6 +151,7 @@ export function WorkQueue({
                   <th>Match confidence</th>
                   <th>Supplier variance</th>
                   <th>Exception</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -155,6 +180,38 @@ export function WorkQueue({
                       <Sparkline points={trends.get(invoice.supplier_id) ?? []} />
                     </td>
                     <td>{invoice.exception_reason ? <span className="chip warn">{reasonLabel(invoice.exception_reason)}</span> : <span className="chip within">clean</span>}</td>
+                    <td>
+                      {/* Approving here raises the payment, so the invoice moves straight to the
+                          release lane on Approvals & Payments without opening the drilldown. */}
+                      {invoice.status === 'Paid' ? (
+                        <span className="chip within">
+                          <CheckCircle2 size={11} /> paid
+                        </span>
+                      ) : invoice.status === 'Approved' ? (
+                        <button
+                          className="chip linkChip"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate('/approvals');
+                          }}
+                          type="button"
+                        >
+                          awaiting release
+                        </button>
+                      ) : (
+                        <button
+                          className="btn small"
+                          disabled={approving === invoice.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void approve(invoice.id);
+                          }}
+                          type="button"
+                        >
+                          {approving === invoice.id ? 'Approving…' : 'Approve'}
+                        </button>
+                      )}
+                    </td>
                   </motion.tr>
                 ))}
               </tbody>

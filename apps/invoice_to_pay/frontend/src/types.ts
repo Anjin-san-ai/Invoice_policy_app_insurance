@@ -175,6 +175,123 @@ export type SettingsResponse = {
 export type Claim = {
   id: string; invoice_claim_ref: string; policy_id: string; customer_id: string;
   incident_date: string; status: string; reserve_gbp: number; paid_to_date_gbp: number;
+  origin: 'batch' | 'customer_portal';
+  customer_name: string; reported_by: string; report_channel: string;
+  contact_number: string; contact_email: string; address: string;
+  insurance_number: string; vehicle_registration: string;
+  incident_type: string; incident_location: string; description: string;
+  severity: 'minor' | 'moderate' | 'major' | 'total_loss';
+  reported_at: string; vehicle_drivable: string; vehicle_at_home: string; triage_summary: string;
+  pending_slot: string; ask_attempts: number;
+  recommended_services: string[];
+  workflow_status: 'draft' | 'awaiting_triage' | 'dispatched' | 'work_in_progress' | 'invoicing' | 'settled';
+};
+
+export type ClaimAttachment = {
+  id: string; claim_id: string; label: string; content_type: string;
+  data_uri: string; uploaded_at: string; source: string; ai_tags: string[];
+};
+
+export type IntakeTurn = {
+  id: string; claim_id: string; role: 'assistant' | 'customer';
+  text: string; at: string; reasoning: string[];
+};
+
+/** Everything the customer portal needs to render the live intake conversation. */
+export type IntakeState = {
+  claim: Claim;
+  turns: IntakeTurn[];
+  attachments: ClaimAttachment[];
+  missing_slots: string[];
+  pending_slot: string;
+  collected: Record<string, string>;
+  ready_to_submit: boolean;
+  submitted: boolean;
+  quick_replies: string[];
+};
+
+/** Policyholder details captured at portal sign-in and stamped onto every claim they raise. */
+export type CustomerProfile = {
+  customer_name: string;
+  insurance_number: string;
+  contact_number: string;
+  contact_email: string;
+  address: string;
+};
+
+/** One row in the signed-in customer's claim list. */
+export type MyClaimRow = {
+  claim_id: string;
+  incident_type: string;
+  incident_date: string;
+  incident_location: string;
+  vehicle_registration: string;
+  severity: string;
+  reported_at: string;
+  stage_title: string;
+  percent_complete: number;
+  photo_count: number;
+  supplier_count: number;
+  update_count: number;
+};
+
+export type ClaimNotification = {
+  id: string; claim_id: string; title: string; body: string;
+  kind: 'info' | 'progress' | 'payment' | 'action'; at: string; read: boolean;
+};
+
+export type JourneyStep = {
+  id: string; title: string; blurb: string;
+  state: 'done' | 'current' | 'pending';
+  at: string | null;
+};
+
+/** The customer-facing tracker payload: journey, tickmarks, updates and suppliers. */
+export type TrackingState = {
+  claim: Claim;
+  steps: JourneyStep[];
+  completed_steps: number;
+  total_steps: number;
+  percent_complete: number;
+  notifications: ClaimNotification[];
+  work_orders: Array<{
+    id: string; service_type: string; supplier_name: string;
+    status: string; stage_index: number;
+    dispatched_at: string; completed_at: string | null;
+  }>;
+  attachments: ClaimAttachment[];
+  excess_gbp: number;
+};
+
+export type WorkOrder = {
+  id: string; claim_id: string; supplier_id: string; supplier_name: string;
+  service_type: string; status: string;
+  authorised_units: number; authorised_value_gbp: number;
+  dispatched_at: string; dispatched_by: string;
+  accepted_at: string | null; started_at: string | null; completed_at: string | null;
+  invoice_id: string | null; notes: string;
+  stage_index: number; stages: string[];
+};
+
+/** Services a handler can instruct from the claim triage panel. */
+export const DISPATCHABLE_SERVICES: Array<{ id: string; label: string; blurb: string }> = [
+  { id: 'repair', label: 'Repair', blurb: 'Approved bodyshop assesses and repairs the vehicle.' },
+  { id: 'recovery', label: 'Recovery', blurb: 'Recover the vehicle from the scene to the bodyshop.' },
+  { id: 'hire', label: 'Courtesy hire', blurb: 'Replacement vehicle while the repair is in progress.' },
+  { id: 'storage', label: 'Storage', blurb: 'Secure storage while liability or the repair is settled.' },
+];
+
+export const SEVERITY_LABEL: Record<string, string> = {
+  minor: 'Minor', moderate: 'Moderate', major: 'Major', total_loss: 'Total loss',
+};
+
+export const WORKFLOW_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  awaiting_triage: 'Awaiting triage',
+  dispatched: 'Suppliers instructed',
+  work_in_progress: 'Work in progress',
+  invoicing: 'Invoices arriving',
+  settled: 'Settled',
 };
 
 export type Policy = {
@@ -190,6 +307,9 @@ export type ClaimRow = {
   paid_gbp: number;
   open_count: number;
   variance_gbp: number;
+  photo_count: number;
+  work_order_count: number;
+  needs_triage: boolean;
 };
 
 export type ClaimFinancials = {
@@ -242,6 +362,75 @@ export type ClaimOverview = {
   disputes: DisputeQuery[];
   payments: Payment[];
   timeline: ClaimTimelineEvent[];
+  attachments: ClaimAttachment[];
+  transcript: IntakeTurn[];
+  work_orders: WorkOrder[];
+};
+
+/** One answer from Theo: prose, the figures behind it, and the screens that prove it. */
+export type AssistantAnswer = {
+  question: string;
+  text: string;
+  metrics: Array<{ label: string; value: string }>;
+  links: Array<{ label: string; route: string }>;
+  /** The detail behind the headline sentence. */
+  bullets: string[];
+  /** What a handler usually asks next. */
+  follow_ups: string[];
+};
+
+/** Claim-side headline numbers for the dashboard. */
+export type ClaimStatistics = {
+  total_claims: number;
+  open_claims: number;
+  portal_claims: number;
+  awaiting_triage: number;
+  work_orders_open: number;
+  photographs: number;
+  reserve_gbp: number;
+  invoiced_gbp: number;
+  reserve_utilisation_pct: number;
+  over_reserve_count: number;
+  by_stage: Record<string, number>;
+  by_severity: Record<string, number>;
+  by_incident_type: Record<string, number>;
+};
+
+/** One agent in a claim's workflow, with the state it is actually in. */
+export type WorkflowAgent = {
+  name: string;
+  role: string;
+  kind: 'llm' | 'coded' | 'tool';
+  state: 'done' | 'active' | 'pending';
+  detail: string;
+};
+
+/** One stage in a workflow, and the agents that run it. */
+export type ClaimWorkflow = {
+  id: string;
+  title: string;
+  blurb: string;
+  state: 'done' | 'active' | 'pending';
+  trigger: string;
+  agents: WorkflowAgent[];
+};
+
+/** One supplier's four-stage workflow on a claim. */
+export type SupplierWorkflowLane = {
+  work_order_id: string;
+  supplier_id: string;
+  supplier_name: string;
+  service_type: string;
+  status: string;
+  authorised_value_gbp: number;
+  invoice_id: string | null;
+  stages: ClaimWorkflow[];
+};
+
+/** Claim-level triage, then one lane per instructed supplier. */
+export type ClaimAgentWorkflows = {
+  triage: ClaimWorkflow;
+  suppliers: SupplierWorkflowLane[];
 };
 
 export type SupplierMatrix = {

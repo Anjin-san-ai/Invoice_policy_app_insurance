@@ -164,8 +164,6 @@ class SearchService:
         ("/analytics", "Analytics", "Leakage, cycle time and exception trends"),
         ("/benefits", "Benefits Tracker", "FTE saving against the business case"),
         ("/audit", "Audit Trail", "Hash-chained append-only events"),
-        ("/agent-studio", "Agent Studio", "The interactive Neuro SAN agent network"),
-        ("/settings", "Settings", "Thresholds, tolerances and redaction rules"),
     )
 
     def _modules(self, needle: str) -> list[dict[str, str]]:

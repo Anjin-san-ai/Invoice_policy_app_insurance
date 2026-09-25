@@ -1,47 +1,73 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, ArrowLeft, Building2, FileText, Layers, ShieldCheck, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Building2, Camera, FileText, Layers, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useApi } from '../api/useApi';
 import { FlowPipeline, RadialGauge, StackedShare, StatChip } from '../charts/Visuals';
+import { ClaimAgentFlow } from '../components/ClaimAgentFlow';
+import { ClaimIncidentPanel, ClaimWorkPanel } from '../components/ClaimIntakePanel';
 import { ConfidenceMeter, Empty, KeyValues, Loading, StatusChip } from '../components/Common';
 import { PageHead } from '../layouts/Shell';
 import { navigate } from '../router';
-import { ClaimOverview, ClaimRow, gbp, reasonLabel } from '../types';
+import { ClaimOverview, ClaimRow, SEVERITY_LABEL, WORKFLOW_LABEL, gbp, reasonLabel } from '../types';
 
 const STAGES = ['Received', 'Extracted', 'Redacted', 'Matched', 'Validated', 'Approved', 'Paid'] as const;
 
 /** Claim list: the entry point into the 360 view. */
 function ClaimList() {
   const [search, setSearch] = useState('');
-  const query = search.trim() ? `/api/claims?limit=60&search=${encodeURIComponent(search.trim())}` : '/api/claims?limit=60';
+  const [onlyTriage, setOnlyTriage] = useState(false);
+  const query = search.trim() ? `/api/claims?limit=150&search=${encodeURIComponent(search.trim())}` : '/api/claims?limit=150';
   const { data, error, loading } = useApi<ClaimRow[]>(query);
+
+  const rows = (data ?? []).filter((row) => !onlyTriage || row.needs_triage);
+  const triageCount = (data ?? []).filter((row) => row.needs_triage).length;
 
   return (
     <>
       <PageHead
         eyebrow="Claim 360"
-        title="Claims with supplier spend"
-        sub="One accident usually attracts several invoices from different suppliers. Open a claim to see every bill, authorisation, payment and decision attached to it in one place."
+        title="Claims and supplier spend"
+        sub="One accident usually attracts several invoices from different suppliers. Open a claim to see the incident, the photographs the customer sent, every bill, authorisation, payment and decision in one place."
       />
+
+      {triageCount > 0 ? (
+        <p className="banner info">
+          <Sparkles size={16} />
+          {triageCount} customer-raised claim{triageCount === 1 ? '' : 's'} waiting on triage. Open one to review the
+          photographs and instruct suppliers.
+        </p>
+      ) : null}
 
       <article className="card">
         <div className="filters">
-          <input aria-label="Search claims" onChange={(event) => setSearch(event.target.value)} placeholder="Claim id" value={search} />
+          <input
+            aria-label="Search claims"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Claim id, customer, location or incident"
+            value={search}
+          />
+          <button
+            className={`filterChip${onlyTriage ? ' on' : ''}`}
+            onClick={() => setOnlyTriage((on) => !on)}
+            type="button"
+          >
+            Needs triage ({triageCount})
+          </button>
         </div>
         {loading ? (
           <Loading />
         ) : error ? (
           <Empty>Could not load claims: {error}</Empty>
-        ) : !data || data.length === 0 ? (
+        ) : rows.length === 0 ? (
           <Empty>No claims match.</Empty>
         ) : (
           <div className="tableWrap">
             <table>
               <thead>
-                <tr><th>Claim</th><th>Incident</th><th className="num">Invoices</th><th className="num">Suppliers</th><th className="num">Invoiced</th><th className="num">Paid</th><th className="num">Open</th><th className="num">Variance</th><th>Reserve used</th></tr>
+                <tr><th>Claim</th><th>Incident</th><th>Stage</th><th className="num">Photos</th><th className="num">Invoices</th><th className="num">Suppliers</th><th className="num">Invoiced</th><th className="num">Open</th><th className="num">Variance</th><th>Reserve used</th></tr>
               </thead>
               <tbody>
-                {data.map((row, index) => {
+                {rows.map((row, index) => {
                   const utilisation = row.claim.reserve_gbp ? row.invoiced_gbp / row.claim.reserve_gbp : 0;
                   return (
                     <motion.tr
@@ -52,12 +78,40 @@ function ClaimList() {
                       onClick={() => navigate(`/claim/${row.claim.id}`)}
                       transition={{ delay: Math.min(index * 0.015, 0.4) }}
                     >
-                      <td className="mono">{row.claim.id}</td>
-                      <td className="mono">{row.claim.incident_date}</td>
+                      <td>
+                        <b className="mono">{row.claim.id}</b>
+                        <small style={{ display: 'block', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          {row.claim.customer_name}
+                          {row.claim.origin === 'customer_portal' ? ' · portal' : ''}
+                        </small>
+                      </td>
+                      <td>
+                        {row.claim.incident_type.replace(/_/g, ' ')}
+                        <small style={{ display: 'block', color: 'var(--text-muted)', fontWeight: 600 }}>
+                          {row.claim.incident_date} · {row.claim.incident_location}
+                        </small>
+                      </td>
+                      <td>
+                        <span className={`chip${row.needs_triage ? ' warn' : ''}`}>
+                          {WORKFLOW_LABEL[row.claim.workflow_status] ?? row.claim.workflow_status}
+                        </span>
+                        <small style={{ display: 'block', color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>
+                          {SEVERITY_LABEL[row.claim.severity] ?? row.claim.severity}
+                          {row.work_order_count > 0 ? ` · ${row.work_order_count} work orders` : ''}
+                        </small>
+                      </td>
+                      <td className="num">
+                        {row.photo_count > 0 ? (
+                          <span className="chip">
+                            <Camera size={11} /> {row.photo_count}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="num">{row.invoice_count}</td>
                       <td className="num">{row.supplier_count}</td>
                       <td className="num">{gbp(row.invoiced_gbp)}</td>
-                      <td className="num">{gbp(row.paid_gbp)}</td>
                       <td className="num">{row.open_count > 0 ? <span className="chip warn">{row.open_count}</span> : <span className="chip within">0</span>}</td>
                       <td className="num">{row.variance_gbp > 0 ? <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{gbp(row.variance_gbp)}</span> : '—'}</td>
                       <td><ConfidenceMeter threshold={1.0} value={Math.min(1, utilisation)} /></td>
@@ -75,8 +129,10 @@ function ClaimList() {
 
 /** The 360 degree view of a single claim. */
 function ClaimDetail({ claimId }: { claimId: string }) {
-  const { data, error, loading } = useApi<ClaimOverview>(`/api/claims/${claimId}/overview`);
+  const { data, error, loading, reload } = useApi<ClaimOverview>(`/api/claims/${claimId}/overview`);
   const [tab, setTab] = useState<'invoices' | 'authorisations' | 'timeline'>('invoices');
+  // Shared between the supplier panel and the agent graph beside it.
+  const [focusSupplier, setFocusSupplier] = useState<string | null>(null);
 
   if (loading) return <Loading rows={6} />;
   if (error) return <Empty>Could not load claim {claimId}: {error}</Empty>;
@@ -88,9 +144,9 @@ function ClaimDetail({ claimId }: { claimId: string }) {
   return (
     <>
       <PageHead
-        eyebrow="Claim 360"
-        title={data.claim.id}
-        sub={`Incident ${data.claim.incident_date} · ${data.invoices.length} invoices from ${data.suppliers.length} supplier${data.suppliers.length === 1 ? '' : 's'}`}
+        eyebrow={data.claim.origin === 'customer_portal' ? 'Claim 360 · customer raised' : 'Claim 360'}
+        title={`${data.claim.id}${data.claim.customer_name ? ` · ${data.claim.customer_name}` : ''}`}
+        sub={`${data.claim.incident_type.replace(/_/g, ' ')} on ${data.claim.incident_date} · ${data.invoices.length} invoices from ${data.suppliers.length} supplier${data.suppliers.length === 1 ? '' : 's'}`}
         actions={
           <>
             <button className="btn secondary" onClick={() => navigate('/claims')} type="button">
@@ -103,6 +159,13 @@ function ClaimDetail({ claimId }: { claimId: string }) {
         }
       />
 
+      {data.claim.workflow_status === 'awaiting_triage' ? (
+        <p className="banner info">
+          <Sparkles size={16} />
+          This claim is waiting on you. Review the incident and photographs below, then instruct the suppliers it needs.
+        </p>
+      ) : null}
+
       {money.reserve_utilisation_pct > 100 ? (
         <p className="banner warn">
           <AlertTriangle size={16} />
@@ -110,6 +173,21 @@ function ClaimDetail({ claimId }: { claimId: string }) {
           still withheld pending query resolution, so the final settled figure will be lower.
         </p>
       ) : null}
+
+      {/* ------------------------------------------------ what happened + supplier work */}
+      <ClaimIncidentPanel claim={data.claim} photos={data.attachments} transcript={data.transcript} />
+
+      {/* Supplier list and the agent graph sit side by side and share a selection, so picking a
+          supplier on the left highlights its lane on the right. */}
+      <section className="grid claimWork section">
+        <ClaimWorkPanel
+          claim={data.claim}
+          onChanged={reload}
+          onSelectSupplier={setFocusSupplier}
+          selectedSupplier={focusSupplier}
+        />
+        <ClaimAgentFlow claimId={claimId} focusSupplier={focusSupplier} />
+      </section>
 
       {/* ------------------------------------------------ money ring + stat spine */}
       <section className="grid claimTop section">

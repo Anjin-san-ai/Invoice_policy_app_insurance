@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, FileCheck2, Layers, PoundSterling } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useApi } from '../api/useApi';
+import { ApiState, useApi } from '../api/useApi';
 import { StatChip } from '../charts/Visuals';
-import { Empty, Loading } from '../components/Common';
+import { Empty, KeyValues, Loading } from '../components/Common';
 import { PageHead } from '../layouts/Shell';
 import { navigate } from '../router';
 import { RateCard, SettingsResponse, gbp } from '../types';
@@ -41,6 +41,7 @@ export function RateCards() {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [tab, setTab] = useState<'registry' | 'controls'>('registry');
 
   const all = cards.data ?? [];
   const rows = useMemo(() => {
@@ -64,10 +65,24 @@ export function RateCards() {
     <>
       <PageHead
         eyebrow="Policy dependency"
-        title="Policy registry"
-        sub="Effective-dated contracts that every charge is validated against. A policy past its review date is flagged stale, and a stale policy still in force is the one to worry about."
+        title="Policies"
+        sub="Effective-dated contracts that every charge is validated against, and the thresholds those charges are judged by. A policy past its review date is flagged stale, and a stale policy still in force is the one to worry about."
       />
 
+      {/* The controls tab holds what used to be a separate Settings screen: every value on it is
+          a policy control, so it belongs with the policies it governs. */}
+      <div className="filters">
+        <button className={`filterChip${tab === 'registry' ? ' on' : ''}`} onClick={() => setTab('registry')} type="button">
+          Policy registry ({all.length})
+        </button>
+        <button className={`filterChip${tab === 'controls' ? ' on' : ''}`} onClick={() => setTab('controls')} type="button">
+          Validation controls
+        </button>
+      </div>
+
+      {tab === 'controls' ? <PolicyControls settings={settings} /> : null}
+
+      <div hidden={tab !== 'registry'}>
       <section className="chipRow section">
         <StatChip label="Policies" value={all.length} />
         <StatChip label="In force" tone="ok" value={all.filter((card) => card.is_in_force).length} />
@@ -199,6 +214,78 @@ export function RateCards() {
           })}
         </section>
       )}
+      </div>
+    </>
+  );
+}
+
+/** Validation thresholds, benefit parameters and redaction rules that govern every policy check.
+ *
+ * This was a separate Settings screen. It reads better here: a handler questioning why a charge
+ * was flagged wants the tolerance that flagged it on the same screen as the contract.
+ */
+function PolicyControls({ settings }: { settings: ApiState<SettingsResponse> }) {
+  if (settings.loading) return <Loading rows={3} />;
+  if (settings.error) return <Empty>Could not load the validation controls: {settings.error}</Empty>;
+  if (!settings.data) return <Empty>No validation controls.</Empty>;
+
+  const values = settings.data.settings;
+
+  return (
+    <>
+      <p className="cardNote">
+        Thresholds and redaction rules are configuration-driven, loaded from the seed file rather
+        than hard-coded. Read-only in this build.
+      </p>
+
+      <section className="grid two section">
+        <article className="card">
+          <h2>Validation thresholds</h2>
+          <KeyValues
+            items={[
+              ['High value threshold', gbp(values.high_value_threshold_gbp)],
+              ['Tolerance percent', `${values.tolerance_pct}%`],
+              ['Tolerance absolute', gbp(values.tolerance_gbp)],
+              ['Minimum extraction confidence', values.min_extraction_confidence],
+              ['Minimum match confidence', values.min_match_confidence],
+              ['Policy staleness window', `${values.rate_card_stale_days} days`],
+            ]}
+          />
+        </article>
+        <article className="card">
+          <h2>Benefit model parameters</h2>
+          <KeyValues
+            items={Object.entries(settings.data.metadata).map(([key, value]) => [
+              key.replace(/_/g, ' '),
+              String(value),
+            ])}
+          />
+        </article>
+      </section>
+
+      <article className="card">
+        <h2>GDPR and PII redaction rules</h2>
+        <p className="cardNote">
+          Applied by the deterministic rule engine before any model exposure. Each match writes a
+          what-and-why audit entry.
+        </p>
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr><th>Rule</th><th>Reason</th><th>Pattern</th></tr>
+            </thead>
+            <tbody>
+              {values.redaction_rules.map((rule) => (
+                <tr key={rule.id}>
+                  <td className="mono">{rule.id}</td>
+                  <td>{rule.reason}</td>
+                  <td className="mono">{rule.pattern}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
     </>
   );
 }

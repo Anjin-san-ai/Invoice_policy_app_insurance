@@ -20,8 +20,13 @@ class ClaimOverviewService:
     def __init__(self, repository: InvoiceRepository) -> None:
         self.repository = repository
 
-    def list_claims(self, limit: int = 60, search: str | None = None) -> list[dict[str, Any]]:
-        """Return claims ranked by invoiced value, with the headline aggregates per claim."""
+    def list_claims(self, limit: int = 150, search: str | None = None) -> list[dict[str, Any]]:
+        """Return claims with the headline aggregates per claim.
+
+        A claim with no invoices yet is still listed: a customer-raised claim arrives with nothing
+        billed against it, and dropping those would mean a claim a customer just submitted never
+        reached the handler who has to triage it.
+        """
         invoices_by_claim: dict[str, list[Any]] = {}
         for invoice in self.repository.invoices.values():
             if invoice.claim_id:
@@ -30,11 +35,13 @@ class ClaimOverviewService:
         rows: list[dict[str, Any]] = []
         needle = (search or "").strip().lower()
         for claim in self.repository.claims.values():
-            if needle and needle not in claim.id.lower() and needle not in claim.invoice_claim_ref.lower():
+            # Drafts belong to the customer still filling them in, not to the back office.
+            if claim.workflow_status == "draft":
+                continue
+            if needle and not self._matches(claim, needle):
                 continue
             invoices = invoices_by_claim.get(claim.id, [])
-            if not invoices:
-                continue
+            work_orders = self.repository.claim_work_orders(claim.id)
             rows.append(
                 {
                     "claim": claim.to_dict(),
@@ -52,10 +59,91 @@ class ClaimOverviewService:
                         ),
                         2,
                     ),
+                    "photo_count": len(self.repository.claim_attachments.get(claim.id, [])),
+                    "work_order_count": len(work_orders),
+                    "needs_triage": claim.workflow_status == "awaiting_triage",
                 }
             )
-        rows.sort(key=lambda row: row.get("invoiced_gbp", 0.0), reverse=True)
+        # Claims waiting on a handler come first whatever they are worth, then customer-raised
+        # claims, then the rest by value. An untriaged claim is the one thing that needs action.
+        rows.sort(
+            key=lambda row: (
+                not row.get("needs_triage"),
+                row.get("claim", {}).get("origin") != "customer_portal",
+                -row.get("invoiced_gbp", 0.0),
+            )
+        )
         return rows[:limit]
+
+    def statistics(self) -> dict[str, Any]:
+        """Return claim-side headline numbers for the dashboard.
+
+        Counts the claim estate rather than the invoice estate: how many claims are open, how many
+        arrived from the customer portal, how many are waiting on a handler, and what is reserved
+        against them. Every figure here has a screen it drills into.
+        """
+        claims = [claim for claim in self.repository.claims.values() if claim.workflow_status != "draft"]
+        by_stage: dict[str, int] = {}
+        by_severity: dict[str, int] = {}
+        by_incident: dict[str, int] = {}
+        for claim in claims:
+            by_stage[claim.workflow_status] = by_stage.get(claim.workflow_status, 0) + 1
+            by_severity[claim.severity] = by_severity.get(claim.severity, 0) + 1
+            by_incident[claim.incident_type] = by_incident.get(claim.incident_type, 0) + 1
+
+        invoiced_by_claim: dict[str, float] = {}
+        for invoice in self.repository.invoices.values():
+            if invoice.claim_id:
+                invoiced_by_claim[invoice.claim_id] = invoiced_by_claim.get(invoice.claim_id, 0.0) + invoice.gross_gbp
+
+        reserve = round(sum(claim.reserve_gbp for claim in claims), 2)
+        invoiced = round(sum(invoiced_by_claim.values()), 2)
+        open_claims = [claim for claim in claims if claim.status == "open"]
+        portal_claims = [claim for claim in claims if claim.origin == "customer_portal"]
+        awaiting = [claim for claim in claims if claim.workflow_status == "awaiting_triage"]
+        # A claim whose invoices have eaten more than its reserve needs a handler's attention.
+        over_reserve = [
+            claim.id
+            for claim in claims
+            if claim.reserve_gbp > 0 and invoiced_by_claim.get(claim.id, 0.0) > claim.reserve_gbp
+        ]
+        return {
+            "total_claims": len(claims),
+            "open_claims": len(open_claims),
+            "portal_claims": len(portal_claims),
+            "awaiting_triage": len(awaiting),
+            "work_orders_open": sum(
+                1 for order in self.repository.work_orders.values() if order.status != "invoiced"
+            ),
+            "photographs": sum(len(items) for items in self.repository.claim_attachments.values()),
+            "reserve_gbp": reserve,
+            "invoiced_gbp": invoiced,
+            "reserve_utilisation_pct": round(invoiced / reserve * 100, 1) if reserve else 0.0,
+            "over_reserve_count": len(over_reserve),
+            "by_stage": by_stage,
+            "by_severity": by_severity,
+            "by_incident_type": by_incident,
+        }
+
+    @staticmethod
+    def _matches(claim: Any, needle: str) -> bool:
+        """Return whether a claim matches the search term.
+
+        Claims now carry a narrative and a customer, so searching only the two identifiers would
+        ignore most of what is on screen.
+        """
+        haystack = " ".join(
+            [
+                claim.id,
+                claim.invoice_claim_ref,
+                claim.customer_name,
+                claim.incident_type,
+                claim.incident_location,
+                claim.reported_by,
+                claim.description,
+            ]
+        ).lower()
+        return needle in haystack
 
     def overview(self, claim_id: str) -> dict[str, Any]:
         """Return the full 360 degree view for one claim.
@@ -99,6 +187,11 @@ class ClaimOverviewService:
             ],
             "payments": payments,
             "timeline": self._timeline(invoices),
+            # Intake evidence: the photographs the customer sent, the assistant transcript and the
+            # supplier work orders raised off the back of triage.
+            "attachments": [item.to_dict() for item in self.repository.claim_attachments.get(claim_id, [])],
+            "transcript": [turn.to_dict() for turn in self.repository.intake_turns.get(claim_id, [])],
+            "work_orders": [order.to_dict() for order in self.repository.claim_work_orders(claim_id)],
         }
 
     def _financials(self, claim: Any, invoices: list[Any], payments: list[dict[str, Any]]) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-"""Compact deterministic invoInvoice-to-pay pipeline for the prototype."""
+"""Compact deterministic invoice-to-pay pipeline for the prototype."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ MODEL_VERSION = "deterministic-offline-prototype"
 
 
 class InvoicePipelineService:
-    """Runs deterministic agent-like processing for invoInvoice-to-pay."""
+    """Runs deterministic agent-like processing for invoice-to-pay."""
 
     def __init__(self, repository: InvoiceRepository) -> None:
         self.repository = repository
@@ -254,7 +254,7 @@ class InvoicePipelineService:
             invoice,
             "Extraction Agent",
             {"layout_id": invoice.layout_id},
-            {"schema_version": "invoInvoice-extraction-v1", "confidence": confidence, "line_count": len(invoice.lines)},
+            {"schema_version": "invoice-extraction-v1", "confidence": confidence, "line_count": len(invoice.lines)},
             3,
             confidence,
         )

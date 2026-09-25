@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 
 export type Route = { path: string; params: URLSearchParams };
 
-export const DEFAULT_PATH = '/dashboard';
+/** The front door is the audience chooser, not the back office. */
+export const DEFAULT_PATH = '/';
+export const BACK_OFFICE_PATH = '/dashboard';
 
 function parseHash(): Route {
   const raw = window.location.hash.replace(/^#/, '') || DEFAULT_PATH;
