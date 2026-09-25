@@ -30,7 +30,7 @@ class ClaimOverviewService:
         rows: list[dict[str, Any]] = []
         needle = (search or "").strip().lower()
         for claim in self.repository.claims.values():
-            if needle and needle not in claim.id.lower() and needle not in claim.ice_claim_ref.lower():
+            if needle and needle not in claim.id.lower() and needle not in claim.invoice_claim_ref.lower():
                 continue
             invoices = invoices_by_claim.get(claim.id, [])
             if not invoices:

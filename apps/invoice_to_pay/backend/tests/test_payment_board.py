@@ -43,7 +43,7 @@ class TestPaymentBoardService:
         released = next(lane for lane in board.get("lanes", []) if lane.get("key") == "released")
         for item in released.get("items", []):
             assert item.get("released_by")
-            assert item.get("ice_writeback_status") == "confirmed"
+            assert item.get("invoice_writeback_status") == "confirmed"
 
     def test_authorising_moves_an_item_into_the_release_lane(self) -> None:
         repository = self._warm()

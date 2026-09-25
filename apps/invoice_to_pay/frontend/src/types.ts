@@ -101,7 +101,7 @@ export type PaymentBoardItem = {
   supplier_id: string; supplier_name: string;
   amount_gbp: number; vat_gbp: number; path: string;
   authorised_by: string | null; released_by: string | null; released_at: string | null;
-  ice_writeback_status: string; reference: string | null; status: string;
+  invoice_writeback_status: string; reference: string | null; status: string;
   above_threshold: boolean; exception_reason: string | null; duplicate_of: string | null;
   is_high_value: boolean; reason: string;
 };
@@ -139,7 +139,7 @@ export type AuditResponse = { hash_chain_valid: boolean; total: number; events: 
 export type Payment = {
   id: string; invoice_id: string; amount_gbp: number; path: string;
   authorised_by: string | null; released_by: string | null; released_at: string | null;
-  ice_writeback_status: string; reference: string | null;
+  invoice_writeback_status: string; reference: string | null;
 };
 
 export type NotificationRecord = { id: string; invoice_id: string; audience: string; status_trigger: string; channel: string; content: string; sent_at: string };
@@ -173,7 +173,7 @@ export type SettingsResponse = {
 };
 
 export type Claim = {
-  id: string; ice_claim_ref: string; policy_id: string; customer_id: string;
+  id: string; invoice_claim_ref: string; policy_id: string; customer_id: string;
   incident_date: string; status: string; reserve_gbp: number; paid_to_date_gbp: number;
 };
 

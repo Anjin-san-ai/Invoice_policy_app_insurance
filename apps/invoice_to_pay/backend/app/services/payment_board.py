@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 LANES = (
     ("authorise", "Needs authorisation", "Held for a human to authorise before any payment is raised."),
     ("release", "Awaiting release", "Authorised. A different identity must release it."),
-    ("released", "Released and written back", "Paid through the supplier's route, with ICE write-back confirmed."),
+    ("released", "Released and written back", "Paid through the supplier's route, with Invoice write-back confirmed."),
     ("blocked", "Blocked", "Stopped before payment and recorded in the audit log."),
 )
 
@@ -100,7 +100,7 @@ class PaymentBoardService:
             "authorised_by": payment.authorised_by if payment is not None else None,
             "released_by": payment.released_by if payment is not None else None,
             "released_at": payment.released_at if payment is not None else None,
-            "ice_writeback_status": payment.ice_writeback_status if payment is not None else "not_raised",
+            "invoice_writeback_status": payment.invoice_writeback_status if payment is not None else "not_raised",
             "reference": payment.reference if payment is not None else None,
             "status": invoice.status,
             "above_threshold": amount > threshold,
@@ -122,4 +122,4 @@ class PaymentBoardService:
             return "Approved by the engine and waiting for a payment to be raised."
         if lane == "release":
             return "Authorised. Segregation of duties requires a different identity to release it."
-        return "Settled. Released by a second identity and written back to ICE."
+        return "Settled. Released by a second identity and written back to the Invoice system."

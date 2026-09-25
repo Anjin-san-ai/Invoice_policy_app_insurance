@@ -1,4 +1,4 @@
-"""Compact deterministic invoice-to-pay pipeline for the prototype."""
+"""Compact deterministic invoInvoice-to-pay pipeline for the prototype."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ MODEL_VERSION = "deterministic-offline-prototype"
 
 
 class InvoicePipelineService:
-    """Runs deterministic agent-like processing for invoice-to-pay."""
+    """Runs deterministic agent-like processing for invoInvoice-to-pay."""
 
     def __init__(self, repository: InvoiceRepository) -> None:
         self.repository = repository
@@ -195,7 +195,7 @@ class InvoicePipelineService:
         payment.released_by = actor_id
         payment.released_at = DomainClock.utc_now()
         payment.reference = result.get("reference")
-        payment.ice_writeback_status = "confirmed"
+        payment.invoice_writeback_status = "confirmed"
         invoice = self.repository.get_invoice(payment.invoice_id)
         if invoice:
             invoice.status = "Paid"
@@ -254,7 +254,7 @@ class InvoicePipelineService:
             invoice,
             "Extraction Agent",
             {"layout_id": invoice.layout_id},
-            {"schema_version": "invoice-extraction-v1", "confidence": confidence, "line_count": len(invoice.lines)},
+            {"schema_version": "invoInvoice-extraction-v1", "confidence": confidence, "line_count": len(invoice.lines)},
             3,
             confidence,
         )
@@ -298,7 +298,7 @@ class InvoicePipelineService:
             self._exception(
                 invoice,
                 "failed_claim_matching",
-                "No ICE claim matched above the confidence threshold.",
+                "No Invoice claim matched above the confidence threshold.",
                 {
                     "type": "review_candidates",
                     "target": "handler",

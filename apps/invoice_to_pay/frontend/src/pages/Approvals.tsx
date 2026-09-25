@@ -50,13 +50,13 @@ export function Approvals() {
     setBusy(item.invoice_id);
     setOutcome(null);
     try {
-      const result = await apiPost<{ path: string; reference: string; ice_writeback_status: string }>(
+      const result = await apiPost<{ path: string; reference: string; invoice_writeback_status: string }>(
         `/api/payments/${item.payment_id}/release`,
         { actor_id: actor },
       );
       setOutcome({
         kind: 'ok',
-        text: `${item.payment_id} released by ${actor} via the ${result.path} route. Invoice write-back ${result.ice_writeback_status}, reference ${result.reference}.`,
+        text: `${item.payment_id} released by ${actor} via the ${result.path} route. Invoice write-back ${result.invoice_writeback_status}, reference ${result.reference}.`,
       });
       board.reload();
     } catch (cause) {
@@ -231,7 +231,7 @@ export function Approvals() {
 
                           {lane.key === 'released' ? (
                             <p className="swimCardSettled">
-                              <CheckCircle2 size={12} /> {item.ice_writeback_status} · <span className="mono">{item.reference}</span>
+                              <CheckCircle2 size={12} /> {item.invoice_writeback_status} · <span className="mono">{item.reference}</span>
                             </p>
                           ) : null}
 

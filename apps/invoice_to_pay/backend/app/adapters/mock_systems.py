@@ -1,4 +1,4 @@
-"""Mock external adapters for ICE, payment, email and supplier portal integrations."""
+"""Mock external adapters for the Invoice system, payment, email and supplier portal integrations."""
 
 from __future__ import annotations
 
@@ -34,11 +34,11 @@ class RpaAdapter(PaymentAdapter):
 
 
 class MockIceAdapter:
-    """Mock ICE write-back adapter."""
+    """Mock Invoice write-back adapter."""
 
     def write_invoice_status(self, invoice_id: str, status: str, reference: str | None = None) -> dict[str, Any]:
-        """Write an invoice status to mock ICE."""
-        return {"invoice_id": invoice_id, "status": status, "reference": reference, "ice_writeback_status": "confirmed"}
+        """Write an invoice status to the mock Invoice system."""
+        return {"invoice_id": invoice_id, "status": status, "reference": reference, "invoice_writeback_status": "confirmed"}
 
 
 class NotificationAdapter:

@@ -104,10 +104,10 @@ class Policy:
 
 @dataclass
 class Claim:
-    """ICE claim record."""
+    """Invoice claim record."""
 
     id: str
-    ice_claim_ref: str
+    invoice_claim_ref: str
     policy_id: str
     customer_id: str
     incident_date: str
@@ -274,7 +274,7 @@ class Payment:
     authorised_by: str | None = None
     released_by: str | None = None
     released_at: str | None = None
-    ice_writeback_status: str = "pending"
+    invoice_writeback_status: str = "pending"
     reference: str | None = None
 
     def to_dict(self) -> dict[str, Any]:

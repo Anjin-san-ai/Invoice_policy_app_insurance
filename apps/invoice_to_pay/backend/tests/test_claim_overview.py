@@ -28,11 +28,11 @@ class TestClaimOverviewService:
         for row in rows:
             assert row.get("invoice_count", 0) > 0
 
-    def test_claim_list_search_matches_the_ice_reference(self) -> None:
+    def test_claim_list_search_matches_the_invoice_reference(self) -> None:
         repository = self._processed()
         service = ClaimOverviewService(repository)
         first = service.list_claims(limit=1)[0].get("claim", {})
-        matched = service.list_claims(limit=10, search=first.get("ice_claim_ref", ""))
+        matched = service.list_claims(limit=10, search=first.get("invoice_claim_ref", ""))
         assert [row.get("claim", {}).get("id") for row in matched] == [first.get("id")]
 
     def test_overview_aggregates_every_related_entity(self) -> None:

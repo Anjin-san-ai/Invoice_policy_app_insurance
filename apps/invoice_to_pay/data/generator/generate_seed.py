@@ -1,4 +1,4 @@
-"""Deterministic synthetic data generator for the invoice-to-pay prototype."""
+"""Deterministic synthetic data generator for the invoInvoice-to-pay prototype."""
 
 from __future__ import annotations
 
@@ -183,7 +183,7 @@ class SeedDataGenerator:
             claims.append(
                 Claim(
                     id=f"CLM-{index:05d}",
-                    ice_claim_ref=f"ICE-{202600000 + index}",
+                    invoice_claim_ref=f"Invoice-{202600000 + index}",
                     policy_id=policy.id,
                     customer_id=f"CUS-{index:05d}",
                     incident_date=(self.today - timedelta(days=self.random.randint(5, 180))).isoformat(),
@@ -239,7 +239,7 @@ class SeedDataGenerator:
             net = round(sum(line.amount_gbp for line in lines), 2)
             vat = round(sum(line.vat_gbp for line in lines), 2)
             invoice_number = f"INV-{index:06d}"
-            claim_ref = claim.ice_claim_ref if outcome != "missing_or_invalid_identifiers" else ""
+            claim_ref = claim.invoice_claim_ref if outcome != "missing_or_invalid_identifiers" else ""
             supplier_ref = f"SREF-{index:06d}" if outcome != "missing_or_invalid_identifiers" else ""
             pii = " Driver: Alex Morgan, M1 1AE, 07123456789, alex.customer@example.com." if index % 11 == 0 else ""
             layout = LAYOUTS[index % len(LAYOUTS)]

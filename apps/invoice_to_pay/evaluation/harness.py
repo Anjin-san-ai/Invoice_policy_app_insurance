@@ -163,7 +163,7 @@ class EvaluationHarness:
             supplier = self.repository.get_supplier(invoice.supplier_id)
             actual = {
                 "invoice_number": invoice.invoice_number,
-                "claim_ref": claim.ice_claim_ref if claim else None,
+                "claim_ref": claim.invoice_claim_ref if claim else None,
                 "supplier_name": supplier.name if supplier else None,
                 "service_type": invoice.lines[0].service_type if invoice.lines else None,
                 "net_gbp": invoice.net_gbp,
@@ -258,7 +258,7 @@ class EvaluationHarness:
                 continue
             checked += 1
             claim = self.repository.get_claim(invoice.claim_id)
-            if claim is not None and claim.ice_claim_ref == oracle.get("claim_ref"):
+            if claim is not None and claim.invoice_claim_ref == oracle.get("claim_ref"):
                 correct += 1
         return [
             self._score(

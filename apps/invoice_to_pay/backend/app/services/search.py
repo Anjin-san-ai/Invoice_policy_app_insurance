@@ -90,12 +90,12 @@ class SearchService:
     def _claims(self, needle: str) -> list[dict[str, str]]:
         hits = []
         for claim in self.repository.claims.values():
-            haystack = f"{claim.id} {claim.ice_claim_ref} {claim.policy_id} {claim.customer_id} {claim.status}".lower()
+            haystack = f"{claim.id} {claim.invoice_claim_ref} {claim.policy_id} {claim.customer_id} {claim.status}".lower()
             if needle in haystack:
                 hits.append(
                     self._hit(
                         f"/claim/{claim.id}",
-                        f"{claim.id} · {claim.ice_claim_ref}",
+                        f"{claim.id} · {claim.invoice_claim_ref}",
                         f"Reserve £{claim.reserve_gbp:,.0f} · paid £{claim.paid_to_date_gbp:,.0f}",
                         claim.status,
                     )

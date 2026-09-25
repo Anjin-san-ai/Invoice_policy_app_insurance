@@ -53,7 +53,7 @@ function ClaimList() {
                       transition={{ delay: Math.min(index * 0.015, 0.4) }}
                     >
                       <td className="mono">{row.claim.id}</td>
-                      <td className="mono">{row.claim.ice_claim_ref}</td>
+                      <td className="mono">{row.claim.invoice_claim_ref}</td>
                       <td className="mono">{row.claim.incident_date}</td>
                       <td className="num">{row.invoice_count}</td>
                       <td className="num">{row.supplier_count}</td>
@@ -90,7 +90,7 @@ function ClaimDetail({ claimId }: { claimId: string }) {
     <>
       <PageHead
         eyebrow="Claim 360"
-        title={data.claim.ice_claim_ref}
+        title={data.claim.invoice_claim_ref}
         sub={`${data.claim.id} · incident ${data.claim.incident_date} · ${data.invoices.length} invoices from ${data.suppliers.length} supplier${data.suppliers.length === 1 ? '' : 's'}`}
         actions={
           <>

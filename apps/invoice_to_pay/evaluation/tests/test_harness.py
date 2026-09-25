@@ -75,13 +75,13 @@ class TestOracles:
 
     def test_extraction_oracle_parses_a_document(self) -> None:
         text = (
-            "Invoice INV-000001 claim ICE-202600008 supplier Repairer Partner 001 "
+            "Invoice INV-000001 claim Invoice-202600008 supplier Repairer Partner 001 "
             "supplier ref SREF-000001. Service repair. Net GBP 360.0. VAT GBP 72.0."
         )
         parsed = ExtractionOracle.parse(text)
         assert parsed is not None
         assert parsed.get("invoice_number") == "INV-000001"
-        assert parsed.get("claim_ref") == "ICE-202600008"
+        assert parsed.get("claim_ref") == "Invoice-202600008"
         assert parsed.get("supplier_name") == "Repairer Partner 001"
         assert parsed.get("service_type") == "repair"
         assert parsed.get("net_gbp") == 360.0
@@ -96,4 +96,4 @@ class TestOracles:
         assert kinds == {"email", "postcode", "phone"}
 
     def test_pii_oracle_finds_nothing_in_a_clean_document(self) -> None:
-        assert PiiOracle.spans("Invoice INV-000001 claim ICE-202600008. Net GBP 360.0.") == []
+        assert PiiOracle.spans("Invoice INV-000001 claim Invoice-202600008. Net GBP 360.0.") == []

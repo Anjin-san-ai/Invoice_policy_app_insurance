@@ -1,11 +1,11 @@
-"""Backend tests for invoice-to-pay prototype."""
+"""Backend tests for invoInvoice-to-pay prototype."""
 
 from apps.invoice_to_pay.backend.app.services.pipeline import InvoicePipelineService
 from apps.invoice_to_pay.backend.app.services.repository import InvoiceRepository
 
 
 class TestInvoicePipeline:
-    """Validate mandatory invoice-to-pay behaviours."""
+    """Validate mandatory invoInvoice-to-pay behaviours."""
 
     def test_straight_through_invoice_is_paid_with_trace(self) -> None:
         repository = InvoiceRepository()
@@ -30,7 +30,7 @@ class TestInvoicePipeline:
         payment = service.release_payment("PAY-INVREC-000071", "ben")
         assert payment.get("released_by") == "ben"
         assert payment.get("authorised_by") == "alice"
-        assert payment.get("ice_writeback_status") == "confirmed"
+        assert payment.get("invoice_writeback_status") == "confirmed"
         assert repository.audit.verify()
 
     def test_second_release_is_refused_so_the_supplier_is_not_paid_twice(self) -> None:
