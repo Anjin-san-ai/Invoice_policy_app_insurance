@@ -64,6 +64,8 @@
   --agent-lip: #c98b86;
   --agent-iris: #1f6f8b;
   --agent-rim: #7ad7ff;
+  /* The cyan light channels on Theo's android shell, reused for her rim light and waveform. */
+  --agent-glow: #2ad4ff;
 
   --shadow-card: 0 10px 30px rgba(10, 37, 64, 0.06);
   --shadow-raised: 0 16px 40px rgba(10, 37, 64, 0.1);
@@ -133,6 +135,8 @@
   --agent-lip: #b07179;
   --agent-iris: #4fc3e8;
   --agent-rim: #35d6c3;
+  /* The light channels read brighter against the dark surfaces. */
+  --agent-glow: #4ee2ff;
 
   --shadow-card: 0 10px 30px rgba(3, 0, 20, 0.5);
   --shadow-raised: 0 16px 40px rgba(3, 0, 20, 0.62);
