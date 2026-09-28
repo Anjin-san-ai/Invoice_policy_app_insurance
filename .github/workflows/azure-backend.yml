@@ -1,0 +1,89 @@
+name: Deploy invoice backend to Azure Container Apps
+
+# The frontend has had azure-swa.yml since day one; the backend had nothing, so the
+# invoice-api Container App kept serving whatever image was last built by hand.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/invoice_to_pay/backend/**'
+      - 'registries/**'
+      - 'coded_tools/**'
+      - 'middleware/**'
+      - 'neuro_san_studio/**'
+      - 'deploy/**'
+      - 'infra/**'
+      - 'requirements.txt'
+      - 'requirements-build.txt'
+      - 'setup.py'
+      - 'pyproject.toml'
+      - '.github/workflows/azure-backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: azure-backend
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-invoice-demo
+  REGISTRY: invoiceacr31691
+  IMAGE_REPO: invoice-app
+
+permissions:
+  id-token: write   # required for the federated (OIDC) login
+  contents: read
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build image in ACR
+        run: |
+          az acr build \
+            --registry "$REGISTRY" \
+            --image "$IMAGE_REPO:${GITHUB_SHA::7}" \
+            --image "$IMAGE_REPO:latest" \
+            --file deploy/app.Dockerfile \
+            .
+
+      # All three services run the same image with a different SERVICE env var, so a
+      # backend change has to roll all of them. --image on its own leaves env vars alone.
+      - name: Roll the container apps onto the new image
+        run: |
+          IMAGE="$REGISTRY.azurecr.io/$IMAGE_REPO:${GITHUB_SHA::7}"
+          for app in invoice-api invoice-nsflow invoice-neuro-san; do
+            echo "::group::$app"
+            az containerapp update \
+              --name "$app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --image "$IMAGE" \
+              --output none
+            echo "::endgroup::"
+          done
+
+      - name: Wait for the new revision to become healthy
+        run: |
+          FQDN=$(az containerapp show -n invoice-api -g "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          for attempt in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$FQDN/api/health" || true)
+            if [ "$code" = "200" ]; then
+              echo "invoice-api healthy at https://$FQDN"
+              curl -s --max-time 20 "https://$FQDN/api/health"
+              exit 0
+            fi
+            echo "attempt $attempt: /api/health returned $code, retrying in 10s"
+            sleep 10
+          done
+          echo "invoice-api did not become healthy in time" >&2
+          az containerapp logs show -n invoice-api -g "$RESOURCE_GROUP" --tail 50 || true
+          exit 1

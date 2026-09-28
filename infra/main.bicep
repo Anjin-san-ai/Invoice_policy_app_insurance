@@ -163,7 +163,7 @@ resource invoiceApi 'Microsoft.App/containerApps@2024-03-01' = {
         corsPolicy: { allowedOrigins: ['*'], allowedMethods: ['*'], allowedHeaders: ['*'] }
       }
       registries: registryConfig
-      secrets: [registrySecret]
+      secrets: [registrySecret, openAiSecret]
     }
     template: {
       containers: [
@@ -173,6 +173,15 @@ resource invoiceApi 'Microsoft.App/containerApps@2024-03-01' = {
           command: ['python']
           args: ['-m', 'uvicorn', 'apps.invoice_to_pay.backend.app.main:app', '--host', '0.0.0.0', '--port', '8095']
           resources: { cpu: json('0.5'), memory: '1Gi' }
+          // services/llm_intake.py reads AZURE_OPENAI_DEPLOYMENT and AZURE_OPENAI_API_VERSION,
+          // not the AZURE_OPENAI_DEPLOYMENT_NAME / OPENAI_API_VERSION pair neuro-san expects.
+          // Without these the Theo intake layer stays silently disabled.
+          env: [
+            { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAiEndpoint }
+            { name: 'AZURE_OPENAI_API_KEY', secretRef: 'azure-openai-key' }
+            { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
+            { name: 'AZURE_OPENAI_API_VERSION', value: openAiApiVersion }
+          ]
         }
       ]
       // In-memory seed data: keep a single replica so state is consistent.
