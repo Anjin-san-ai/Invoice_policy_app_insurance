@@ -63,6 +63,7 @@ class ClaimAgentWorkflowService:
         paid = [item for item in invoices if item.status == "Paid"]
 
         dispatched = True  # A lane only exists because the order was dispatched.
+        accepted = order.status in ("accepted", "in_progress", "completed", "invoiced")
         started = order.status in ("in_progress", "completed", "invoiced")
         invoiced = invoice is not None
         settled = bool(paid)
@@ -76,9 +77,12 @@ class ClaimAgentWorkflowService:
             "authorised_value_gbp": order.authorised_value_gbp,
             "invoice_id": order.invoice_id,
             "stages": [
-                self._assignment_stage(claim, [order], dispatched, started),
-                self._work_stage([order], {order.status}, started, invoiced),
-                self._invoice_stage(invoices, exceptions, paid, invoiced, settled),
+                self._assignment_stage(claim, [order], dispatched, accepted),
+                # Completing the work and the supplier invoicing for it are one task, so their
+                # agents report as one stage rather than two. See _work_and_invoice_stage.
+                self._work_and_invoice_stage(
+                    [order], {order.status}, invoices, exceptions, paid, started, invoiced, settled
+                ),
                 self._settlement_stage(invoices, paid, invoiced, settled),
             ],
         }
@@ -90,7 +94,7 @@ class ClaimAgentWorkflowService:
         value = sum(invoice.gross_gbp for invoice in paid)
         return {
             "id": "settlement",
-            "title": "4 · Settlement",
+            "title": "3 · Settlement",
             "blurb": "Payment is released under segregation of duties and written back.",
             "trigger": "Runs once validation passes and a second identity releases the payment.",
             "state": "done" if settled else "active" if invoiced else "pending",
@@ -187,9 +191,12 @@ class ClaimAgentWorkflowService:
             ],
         }
 
-    def _assignment_stage(self, claim: Any, orders: list[Any], dispatched: bool, started: bool) -> dict[str, Any]:
+    def _assignment_stage(self, claim: Any, orders: list[Any], dispatched: bool, accepted: bool) -> dict[str, Any]:
         """Supplier assignment: picking firms, authorising spend and instructing them."""
-        state = "done" if started else "active" if dispatched else "pending" if claim.workflow_status != "awaiting_triage" else "pending"
+        # Assignment is finished once the supplier has accepted the order. It used to wait for
+        # `started`, so the stage sat "active" with all four of its agents already reporting done —
+        # a tick that only appeared when work began, which is the next stage's business.
+        state = "done" if accepted else "active" if dispatched else "pending"
         names = ", ".join(sorted({self._supplier_name(order.supplier_id) for order in orders})) or "none yet"
         authorised = sum(order.authorised_value_gbp for order in orders)
         return {
@@ -240,6 +247,38 @@ class ClaimAgentWorkflowService:
                     ),
                 },
             ],
+        }
+
+    def _work_and_invoice_stage(
+        self,
+        orders: list[Any],
+        statuses: set[str],
+        invoices: list[Any],
+        exceptions: list[Any],
+        paid: list[Any],
+        started: bool,
+        invoiced: bool,
+        settled: bool,
+    ) -> dict[str, Any]:
+        """
+        Work in progress and invoice validation as one task.
+
+        A supplier invoices off the back of finishing the job, so the front end advances a work
+        order through `completed` to `invoiced` on a single action. This stage reports both sets of
+        agents together so the graph matches that, rather than showing a phase no one can act on
+        independently. The two stage builders are kept separate and reused, so their per-agent
+        logic stays in one place.
+        """
+        work = self._work_stage(orders, statuses, started, invoiced)
+        invoice = self._invoice_stage(invoices, exceptions, paid, invoiced, settled)
+        return {
+            "id": "work",
+            "title": "2 · Work and invoice",
+            "blurb": "Progress is tracked, and the supplier's invoice is validated as it arrives.",
+            "trigger": "Runs as the supplier works, then again the moment the invoice lands.",
+            # Not done until the invoice has been validated, which is the later of the two.
+            "state": invoice.get("state", "pending"),
+            "agents": list(work.get("agents", [])) + list(invoice.get("agents", [])),
         }
 
     def _work_stage(self, orders: list[Any], statuses: set[str], started: bool, invoiced: bool) -> dict[str, Any]:

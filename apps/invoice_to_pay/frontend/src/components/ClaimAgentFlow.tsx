@@ -10,7 +10,7 @@ import {
   Truck,
   Zap,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from '../api/useApi';
 import { navigate } from '../router';
 import { ClaimAgentWorkflows, ClaimWorkflow, WorkflowAgent, gbp } from '../types';
@@ -31,6 +31,16 @@ const LANE_Y0 = 78;
 const LANE_DY = 104;
 const NODE_W = 132;
 const NODE_H = 56;
+
+/** How long an invocation notification stays up, and the gap between consecutive dismissals. */
+const TOAST_MS = 3000;
+const TOAST_STAGGER_MS = 110;
+
+/**
+ * One live invocation notification. The key is stamped so repeat clicks re-trigger the animation,
+ * and `step` names the phase it was invoked from so the notification stands on its own.
+ */
+type ToastEntry = { key: string; agent: WorkflowAgent; step: string };
 
 type GraphNode = {
   id: string;
@@ -58,13 +68,74 @@ type GraphNode = {
 export function ClaimAgentFlow({
   claimId,
   focusSupplier = null,
+  refreshKey = 0,
 }: {
   claimId: string;
   /** Work order id selected in the supplier panel; its lane is highlighted and the rest dimmed. */
   focusSupplier?: string | null;
+  /**
+   * Incremented by the parent whenever a supplier action changes the claim. This component owns a
+   * second endpoint, so without the signal the graph would keep showing pre-action state.
+   */
+  refreshKey?: number;
 }) {
-  const { data, error, loading } = useApi<ClaimAgentWorkflows>(`/api/claims/${claimId}/agent-workflows`);
+  const { data, error, loading, reload } = useApi<ClaimAgentWorkflows>(
+    `/api/claims/${claimId}/agent-workflows`,
+  );
   const [selectedId, setSelectedId] = useState<string>('triage');
+  /** The agent whose full suggestion is pinned open under the pill grid; null when none is. */
+  const [openAgent, setOpenAgent] = useState<string | null>(null);
+  /** Transient "this agent was invoked" notifications, raised by clicking a step. */
+  const [toasts, setToasts] = useState<ToastEntry[]>([]);
+  const timers = useRef<number[]>([]);
+
+  // A supplier action moved the claim on, so pull the graph's own data again. Skipped on mount,
+  // where `useApi` has already fetched, and it revalidates in place so the graph does not blank.
+  useEffect(() => {
+    if (refreshKey === 0) return;
+    reload();
+  }, [refreshKey, reload]);
+
+  // Clear any in-flight dismissal timers, so a fast unmount cannot set state on a dead component.
+  useEffect(
+    () => () => {
+      timers.current.forEach((timer) => window.clearTimeout(timer));
+    },
+    [],
+  );
+
+  /**
+   * Announce the agents a step invoked. Each notification appears in a stack, staggered so they
+   * read in order, and every one dismisses itself after three seconds.
+   */
+  function announce(agents: WorkflowAgent[], step: string) {
+    // Agents that have actually run lead. A step nothing has reached yet still announces its
+    // waiting agents, so clicking any node always produces a visible response.
+    const ran = agents.filter((agent) => agent.state !== 'pending');
+    const invoked = (ran.length > 0 ? ran : agents).slice(0, 4);
+    if (invoked.length === 0) return;
+    const stamp = Date.now();
+    const entries: ToastEntry[] = invoked.map((agent, index) => ({
+      key: `${agent.name}-${stamp}-${index}`,
+      agent,
+      // Strip the "1 · " ordinal, as the graph nodes do.
+      step: step.replace(/^\d+\s*·\s*/, ''),
+    }));
+    setToasts(entries);
+    entries.forEach((entry, index) => {
+      const timer = window.setTimeout(() => {
+        setToasts((current) => current.filter((item) => item.key !== entry.key));
+      }, TOAST_MS + index * TOAST_STAGGER_MS);
+      timers.current.push(timer);
+    });
+  }
+
+  /** Selecting a step pins it, resets any open agent, and announces what that step invoked. */
+  function selectStep(node: GraphNode) {
+    setSelectedId(node.id);
+    setOpenAgent(null);
+    announce(node.stage.agents, node.stage.title);
+  }
 
   // Selecting a supplier jumps the detail panel to whatever that lane is currently doing.
   useEffect(() => {
@@ -118,16 +189,59 @@ export function ClaimAgentFlow({
   if (!data) return <Empty>No agent workflows for this claim.</Empty>;
 
   const laneCount = Math.max(1, data.suppliers.length);
-  const width = LANE_X0 + 3 * LANE_DX + NODE_W + 40;
+  // Width follows the longest lane, so merging two phases into one narrows the graph rather than
+  // leaving an empty column where the old fourth node used to sit.
+  const laneLength = Math.max(1, ...data.suppliers.map((lane) => lane.stages.length));
+  const width = LANE_X0 + (laneLength - 1) * LANE_DX + NODE_W + 40;
   const height = LANE_Y0 + (laneCount - 1) * LANE_DY + NODE_H + 40;
   const selected = nodes.find((node) => node.id === selectedId) ?? nodes[0];
+  const openAgentDetail = selected?.stage.agents.find((agent) => agent.name === openAgent) ?? null;
 
   const allStages = [data.triage, ...data.suppliers.flatMap((lane) => lane.stages)];
   const doneCount = allStages.reduce((sum, s) => sum + s.agents.filter((a) => a.state === 'done').length, 0);
   const runningCount = allStages.reduce((sum, s) => sum + s.agents.filter((a) => a.state === 'active').length, 0);
 
   return (
-    <article className="card section">
+    <article className="card section agentFlowCard">
+      {/* Invocation notifications. Raised by clicking a step, self-dismissing after three seconds. */}
+      <div aria-live="polite" className="agentToastStack">
+        <AnimatePresence initial={false}>
+          {toasts.map((toast, index) => {
+            const meta = KIND_META[toast.agent.kind];
+            return (
+              <motion.div
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                className={`agentToast ${toast.agent.state}`}
+                exit={{ opacity: 0, x: 24, scale: 0.96 }}
+                initial={{ opacity: 0, x: 28, scale: 0.96 }}
+                key={toast.key}
+                transition={{ duration: 0.26, ease: 'easeOut', delay: index * 0.07 }}
+              >
+                <span className="agentToastIcon">
+                  {toast.agent.state === 'done' ? (
+                    <Check size={12} strokeWidth={3.2} />
+                  ) : (
+                    <meta.Icon size={12} />
+                  )}
+                </span>
+                <span className="agentToastText">
+                  <b>{toast.agent.name}</b>
+                  <small>
+                    {meta.label} · {toast.step} ·{' '}
+                    {toast.agent.state === 'done' ? 'completed' : 'running now'}
+                  </small>
+                  {/* What the agent is for, then what it actually did on this claim. */}
+                  <i className="agentToastRole">{toast.agent.role}</i>
+                  <em>
+                    <b>{toast.agent.state === 'done' ? 'Did:' : 'Doing:'}</b> {toast.agent.detail}
+                  </em>
+                </span>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+
       <div className="bentoCardHead">
         <h2>Agent network on this claim</h2>
         <div className="btnRow">
@@ -217,11 +331,17 @@ export function ClaimAgentFlow({
               <g
                 className={`graphNode ${node.state}${isSelected ? ' selected' : ''}${focused ? ' focused' : ''}${muted ? ' muted' : ''}`}
                 key={node.id}
-                onClick={() => setSelectedId(node.id)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  selectStep(node);
+                }}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') setSelectedId(node.id);
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectStep(node);
+                  }
                 }}
                 transform={`translate(${node.x - NODE_W / 2} ${node.y})`}
               >
@@ -255,13 +375,14 @@ export function ClaimAgentFlow({
         </svg>
       </div>
 
-      {/* Detail for the selected node. */}
-      <AnimatePresence mode="wait">
-        {selected ? (
+      {/* Detail for the selected node. Deliberately not wrapped in AnimatePresence: `mode="wait"`
+          held the outgoing panel's slot empty while it faded, collapsing the card's height and
+          then restoring it on every click, which reads as the page reloading. Keying the panel on
+          the selection instead swaps it in place, so only the contents cross-fade. */}
+      {selected ? (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="graphDetail"
-            exit={{ opacity: 0, y: -6 }}
             initial={{ opacity: 0, y: 8 }}
             key={selected.id}
             transition={{ duration: 0.18 }}
@@ -295,16 +416,33 @@ export function ClaimAgentFlow({
               </div>
             </header>
 
+            <p className="cardNote">
+              <MousePointerClick size={13} style={{ verticalAlign: '-2px' }} /> Click an agent to read
+              what it suggested.
+            </p>
+
             <div className="phaseAgents">
               {selected.stage.agents.map((agent, index) => {
                 const meta = KIND_META[agent.kind];
+                const isOpen = openAgent === agent.name;
+                // Pills named in a live notification pulse, so the toast and the grid agree.
+                const announced = toasts.some((toast) => toast.agent.name === agent.name);
                 return (
-                  <motion.div
+                  <motion.button
                     animate={{ opacity: 1, y: 0 }}
-                    className={`agentPill ${agent.kind} ${agent.state}`}
+                    aria-expanded={isOpen}
+                    className={`agentPill ${agent.kind} ${agent.state}${isOpen ? ' open' : ''}${announced ? ' announced' : ''}`}
                     initial={{ opacity: 0, y: 6 }}
                     key={agent.name}
+                    // Stopped and default-prevented so the click cannot reach an ancestor handler
+                    // or be treated as a submit, either of which would reload the page.
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setOpenAgent(isOpen ? null : agent.name);
+                    }}
                     transition={{ delay: Math.min(index * 0.03, 0.25) }}
+                    type="button"
                   >
                     <span className="agentPillIcon">
                       {agent.state === 'done' ? (
@@ -326,13 +464,44 @@ export function ClaimAgentFlow({
                       <small>{meta.label}</small>
                       <em>{agent.detail}</em>
                     </span>
-                  </motion.div>
+                    <ChevronRight className="agentPillChevron" size={12} />
+                  </motion.button>
                 );
               })}
             </div>
+
+            {/* The pinned agent's full suggestion: its role, its state and what it recommended. */}
+            <AnimatePresence initial={false}>
+              {openAgentDetail ? (
+                <motion.div
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="agentSuggestion"
+                  exit={{ opacity: 0, height: 0 }}
+                  initial={{ opacity: 0, height: 0 }}
+                  key={openAgentDetail.name}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  <header>
+                    <b>{openAgentDetail.name}</b>
+                    <span className={`agentColumnState ${openAgentDetail.state}`}>
+                      {openAgentDetail.state === 'done'
+                        ? 'complete'
+                        : openAgentDetail.state === 'active'
+                          ? 'running'
+                          : 'waiting'}
+                    </span>
+                    <span className={`agentDot ${openAgentDetail.kind}`} />
+                    <small>{KIND_META[openAgentDetail.kind].label}</small>
+                  </header>
+                  <p className="agentSuggestionRole">{openAgentDetail.role}</p>
+                  <p className="agentSuggestionBody">
+                    <b>Suggested:</b> {openAgentDetail.detail}
+                  </p>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </motion.div>
-        ) : null}
-      </AnimatePresence>
+      ) : null}
 
       <div className="agentFlowLegend">
         <span>

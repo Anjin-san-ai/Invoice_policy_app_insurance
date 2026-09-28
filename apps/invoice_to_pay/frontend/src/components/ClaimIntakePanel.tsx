@@ -265,10 +265,20 @@ export function ClaimWorkPanel({
     setError(null);
     setNote(null);
     try {
-      const result = await apiPost<{ work_order: WorkOrder; invoice: Record<string, unknown> | null }>(
+      let result = await apiPost<{ work_order: WorkOrder; invoice: Record<string, unknown> | null }>(
         `/api/work-orders/${order.id}/advance`,
         { actor_id: 'demo-user' },
       );
+      // Finishing the job and the supplier invoicing for it are one action here, not two clicks:
+      // a supplier invoices off the back of completing the work, so landing on `completed` rolls
+      // straight on to `invoiced`. The sequence on the server is unchanged, so the work order
+      // still passes through both states and both are audited.
+      if (result.work_order.status === 'completed') {
+        result = await apiPost<{ work_order: WorkOrder; invoice: Record<string, unknown> | null }>(
+          `/api/work-orders/${order.id}/advance`,
+          { actor_id: 'demo-user' },
+        );
+      }
       const raised = result.invoice as { invoice?: { id?: string }; id?: string } | null;
       const invoiceId = raised?.invoice?.id ?? raised?.id;
       setNote(
@@ -403,7 +413,8 @@ function nextLabel(order: WorkOrder): string {
   const labels: Record<string, string> = {
     accepted: 'Mark accepted by supplier',
     in_progress: 'Mark work started',
-    completed: 'Mark work complete',
+    // One button, because `advance` carries completion straight through to invoicing.
+    completed: 'Complete work and receive invoice',
     invoiced: 'Receive supplier invoice',
   };
   return labels[next] ?? 'Advance';

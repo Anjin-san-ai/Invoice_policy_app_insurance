@@ -133,6 +133,8 @@ function ClaimDetail({ claimId }: { claimId: string }) {
   const [tab, setTab] = useState<'invoices' | 'authorisations' | 'timeline'>('invoices');
   // Shared between the supplier panel and the agent graph beside it.
   const [focusSupplier, setFocusSupplier] = useState<string | null>(null);
+  /** Bumped by any supplier action, so the agent graph refetches its own endpoint alongside us. */
+  const [workVersion, setWorkVersion] = useState(0);
 
   if (loading) return <Loading rows={6} />;
   if (error) return <Empty>Could not load claim {claimId}: {error}</Empty>;
@@ -182,11 +184,14 @@ function ClaimDetail({ claimId }: { claimId: string }) {
       <section className="grid claimWork section">
         <ClaimWorkPanel
           claim={data.claim}
-          onChanged={reload}
+          onChanged={() => {
+            reload();
+            setWorkVersion((version) => version + 1);
+          }}
           onSelectSupplier={setFocusSupplier}
           selectedSupplier={focusSupplier}
         />
-        <ClaimAgentFlow claimId={claimId} focusSupplier={focusSupplier} />
+        <ClaimAgentFlow claimId={claimId} focusSupplier={focusSupplier} refreshKey={workVersion} />
       </section>
 
       {/* ------------------------------------------------ money ring + stat spine */}
